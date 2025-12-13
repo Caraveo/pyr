@@ -172,6 +172,48 @@ class Agent:
             prompt_parts.append("Specify the technology stack, file structure, and build/run commands.")
             prompt_parts.append("=" * 80)
         
+        # Add structure information for craft mode (before design documents)
+        if self.mode == 'craft' and self.detected_structure:
+            structure_prompt = get_structure_prompt(
+                self.detected_structure,
+                self.project_name,
+                user_input
+            )
+            assumptions = self.detected_structure.get('assumptions', {})
+            structure_def = assumptions.get('structure', {})
+            
+            prompt_parts.append("\n\n" + "=" * 80)
+            prompt_parts.append("⚠️  PROJECT STRUCTURE REQUIREMENTS ⚠️")
+            prompt_parts.append("=" * 80)
+            prompt_parts.append(structure_prompt)
+            
+            # List required files that are missing
+            missing_files = []
+            for file_path, file_info in structure_def.items():
+                if file_info.get('required', False):
+                    # Replace {PROJECT_NAME} placeholder
+                    actual_path = file_path.replace('{PROJECT_NAME}', self.project_name)
+                    file_full_path = self.cwd / actual_path
+                    if not file_full_path.exists():
+                        missing_files.append((actual_path, file_info))
+            
+            if missing_files:
+                prompt_parts.append("\n" + "=" * 80)
+                prompt_parts.append("⚠️  CRITICAL: MISSING REQUIRED FILES ⚠️")
+                prompt_parts.append("=" * 80)
+                prompt_parts.append("\nThe following required files are MISSING and MUST be created FIRST:")
+                for file_path, file_info in missing_files:
+                    template = file_info.get('template', '')
+                    # Replace placeholders in template
+                    template = template.replace('{PROJECT_NAME}', self.project_name)
+                    prompt_parts.append(f"\n- {file_path}")
+                    prompt_parts.append(f"  Description: {file_info.get('description', '')}")
+                    prompt_parts.append(f"  Template:\n{template}")
+                prompt_parts.append("\n" + "=" * 80)
+                prompt_parts.append("ACTION REQUIRED: Create ALL missing required files BEFORE implementing other features.")
+                prompt_parts.append("These files are essential for the project to build and run.")
+                prompt_parts.append("=" * 80)
+        
         # Add design document(s) if available
         design_keys = [k for k in self.project_context.keys() if k.startswith('__design__')]
         if design_keys:
