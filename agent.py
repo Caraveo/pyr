@@ -202,7 +202,7 @@ class Agent:
             
             # Strategy 1: Try standard JSON parser (fast path)
             try:
-            return json.loads(json_str)
+                return json.loads(json_str)
             except json.JSONDecodeError:
                 pass
             
