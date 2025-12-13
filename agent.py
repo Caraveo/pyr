@@ -12,6 +12,16 @@ import argparse
 from pathlib import Path
 from typing import List, Dict, Optional, Any
 
+# Try to import json5 for more lenient JSON parsing
+# json5 handles trailing commas, comments, and other non-standard JSON
+try:
+    import json5  # type: ignore
+    HAS_JSON5 = True
+except ImportError:
+    HAS_JSON5 = False
+    # json5 not available, will use fallback methods
+    # Install with: pip3 install json5
+
 # Add tools directory to path
 sys.path.insert(0, str(Path(__file__).parent))
 
@@ -143,7 +153,7 @@ class Agent:
         return "\n".join(prompt_parts)
     
     def parse_response(self, response: str) -> Optional[Dict[str, Any]]:
-        """Parse JSON response from the model with robust error handling."""
+        """Parse JSON response from the model with robust error handling using multiple strategies."""
         try:
             # Try to extract JSON from response
             response = response.strip()
@@ -158,73 +168,134 @@ class Agent:
             
             json_str = response[start:end]
             
-            # Strategy 1: Try parsing as-is first
+            # Strategy 1: Try standard JSON parser (fast path)
             try:
                 return json.loads(json_str)
             except json.JSONDecodeError:
                 pass
             
-            # Strategy 2: Fix unescaped control characters in string values
-            # This function properly escapes control chars within JSON strings
-            def fix_json_strings(text):
-                result = []
-                in_string = False
-                escape_next = False
-                i = 0
-                while i < len(text):
-                    char = text[i]
-                    
-                    if escape_next:
-                        result.append(char)
-                        escape_next = False
-                    elif char == '\\':
-                        result.append(char)
-                        escape_next = True
-                    elif char == '"' and not escape_next:
-                        in_string = not in_string
-                        result.append(char)
-                    elif in_string:
-                        # We're inside a string value
-                        if ord(char) < 32:  # Control character
-                            # Escape common control characters
-                            if char == '\n':
-                                result.append('\\n')
-                            elif char == '\r':
-                                result.append('\\r')
-                            elif char == '\t':
-                                result.append('\\t')
-                            # Remove other control characters (0x00-0x1F)
-                            # They're not valid in JSON strings
-                        else:
-                            result.append(char)
-                    else:
-                        # Outside string - keep as-is
-                        result.append(char)
-                    i += 1
-                return ''.join(result)
+            # Strategy 2: Try json5 (more lenient, handles trailing commas, comments, etc.)
+            if HAS_JSON5:
+                try:
+                    return json5.loads(json_str)
+                except Exception:
+                    pass
             
-            json_str_cleaned = fix_json_strings(json_str)
-            
-            # Try parsing the cleaned version
+            # Strategy 3: Fix common JSON issues
+            json_str_fixed = self._fix_common_json_issues(json_str)
             try:
-                return json.loads(json_str_cleaned)
-            except json.JSONDecodeError as e:
-                print(f"Error parsing JSON after cleanup: {e}", file=sys.stderr)
-                # Show more context around the error
-                error_pos = getattr(e, 'pos', None)
-                if error_pos:
-                    start_pos = max(0, error_pos - 100)
-                    end_pos = min(len(json_str_cleaned), error_pos + 100)
-                    print(f"Context around error (pos {error_pos}):", file=sys.stderr)
-                    print(json_str_cleaned[start_pos:end_pos], file=sys.stderr)
-                else:
-                    print(f"Problematic JSON (first 1000 chars): {json_str_cleaned[:1000]}", file=sys.stderr)
-                return None
+                return json.loads(json_str_fixed)
+            except json.JSONDecodeError:
+                pass
+            
+            # Strategy 4: Try json5 on fixed version
+            if HAS_JSON5:
+                try:
+                    return json5.loads(json_str_fixed)
+                except Exception:
+                    pass
+            
+            # Strategy 5: Extract actions array directly using regex (last resort)
+            actions_match = re.search(r'"actions"\s*:\s*\[(.*?)\]', json_str, re.DOTALL)
+            if actions_match:
+                try:
+                    # Try to reconstruct valid JSON
+                    actions_str = actions_match.group(1)
+                    # Simple extraction - look for action objects
+                    action_objects = re.findall(r'\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}', actions_str)
+                    if action_objects:
+                        actions = []
+                        for obj_str in action_objects:
+                            try:
+                                # Try to parse individual action
+                                obj_str = '{' + obj_str.strip('{}') + '}'
+                                # Fix common issues in action object
+                                obj_fixed = self._fix_common_json_issues(obj_str)
+                                action = json.loads(obj_fixed)
+                                actions.append(action)
+                            except:
+                                continue
+                        if actions:
+                            return {"actions": actions}
+                except Exception:
+                    pass
+            
+            # If all strategies fail, show error but don't crash
+            print(f"Warning: Could not parse JSON response after all strategies", file=sys.stderr)
+            print(f"Response preview (first 500 chars): {response[:500]}", file=sys.stderr)
+            return None
         
         except Exception as e:
             print(f"Unexpected error parsing JSON: {e}", file=sys.stderr)
-            print(f"Response was: {response[:500]}", file=sys.stderr)
             return None
+    
+    def _fix_common_json_issues(self, json_str: str) -> str:
+        """Fix common JSON issues like invalid escape sequences, unescaped control chars, etc."""
+        result = []
+        in_string = False
+        escape_next = False
+        i = 0
+        
+        while i < len(json_str):
+            char = json_str[i]
+            
+            if escape_next:
+                # We're processing an escaped character
+                if char in ['n', 'r', 't', 'b', 'f', '\\', '"', '/']:
+                    # Valid escape sequences
+                    result.append('\\' + char)
+                elif char == 'u':
+                    # Unicode escape - try to preserve it
+                    if i + 4 < len(json_str):
+                        result.append('\\u' + json_str[i+1:i+5])
+                        i += 4
+                    else:
+                        result.append('\\u0000')  # Invalid, replace with null
+                else:
+                    # Invalid escape sequence - remove the backslash or replace
+                    # Common invalid escapes: \s, \d, etc. - just output the char
+                    result.append(char)
+                escape_next = False
+            elif char == '\\':
+                result.append(char)
+                escape_next = True
+            elif char == '"':
+                # Check if this quote is escaped
+                if i > 0 and json_str[i-1] == '\\':
+                    # Check if the backslash itself is escaped
+                    backslash_count = 0
+                    j = i - 1
+                    while j >= 0 and json_str[j] == '\\':
+                        backslash_count += 1
+                        j -= 1
+                    # If odd number of backslashes, the quote is escaped
+                    if backslash_count % 2 == 1:
+                        result.append(char)
+                    else:
+                        in_string = not in_string
+                        result.append(char)
+                else:
+                    in_string = not in_string
+                    result.append(char)
+            elif in_string:
+                # Inside a string value
+                if ord(char) < 32:  # Control character
+                    # Escape common control characters
+                    if char == '\n':
+                        result.append('\\n')
+                    elif char == '\r':
+                        result.append('\\r')
+                    elif char == '\t':
+                        result.append('\\t')
+                    # Remove other control characters
+                else:
+                    result.append(char)
+            else:
+                # Outside string
+                result.append(char)
+            i += 1
+        
+        return ''.join(result)
     
     def execute_actions(self, actions: List[Dict[str, Any]], auto_debug: bool = True) -> str:
         """Execute a list of actions and return a summary."""
