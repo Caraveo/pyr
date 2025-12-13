@@ -82,9 +82,32 @@ class Agent:
         # Load project context
         self.load_context()
         
-        # For craft mode, load design files if provided
+        # For craft mode, load design files and detect structure
         if mode == 'craft' and self.design_files:
             self.load_design_files()
+            # Try to detect structure from design document or existing files
+            design_content = ""
+            for design_file in self.design_files:
+                if design_file.exists():
+                    content = read_file(design_file)
+                    if content:
+                        design_content += content + " "
+            
+            # Detect structure from design content or existing files
+            self.detected_structure = detect_structure(self.cwd, design_content)
+            if not self.detected_structure:
+                # Try detecting from existing files
+                self.detected_structure = detect_structure(self.cwd, "")
+            
+            # Extract project name from design file name or directory
+            if self.design_files:
+                self.project_name = self.design_files[0].stem.replace('.design', '')
+            else:
+                self.project_name = self.cwd.name
+            
+            if self.detected_structure:
+                print(f"Detected structure: {self.detected_structure.get('name', 'Unknown')}", file=sys.stderr)
+                print(f"Project name: {self.project_name}", file=sys.stderr)
     
     def load_context(self):
         """Load project context and design document if available."""
