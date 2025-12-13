@@ -202,7 +202,7 @@ class Agent:
             
             # Strategy 1: Try standard JSON parser (fast path)
             try:
-                return json.loads(json_str)
+            return json.loads(json_str)
             except json.JSONDecodeError:
                 pass
             
@@ -227,7 +227,91 @@ class Agent:
                 except Exception:
                     pass
             
-            # Strategy 5: Extract actions array directly using regex (last resort)
+            # Strategy 5: Fix unescaped newlines in content fields specifically
+            # This handles cases where the model outputs literal \n instead of \\n
+            try:
+                # Find all "content": "..." fields and fix newlines
+                def fix_content_newlines_in_json(text):
+                    result = []
+                    i = 0
+                    in_content_value = False
+                    content_start = -1
+                    
+                    while i < len(text):
+                        # Look for "content": pattern
+                        if (i + 10 < len(text) and 
+                            text[i:i+10] == '"content":'):
+                            # Skip to the opening quote
+                            j = i + 10
+                            while j < len(text) and text[j] in ' \t\n\r:':
+                                j += 1
+                            if j < len(text) and text[j] == '"':
+                                in_content_value = True
+                                content_start = j
+                                result.append(text[i:j+1])
+                                i = j + 1
+                                continue
+                        
+                        if in_content_value:
+                            # We're inside a content string value
+                            if text[i] == '\\':
+                                # Escaped character
+                                if i + 1 < len(text):
+                                    result.append(text[i:i+2])
+                                    i += 2
+                                else:
+                                    result.append(text[i])
+                                    i += 1
+                            elif text[i] == '"':
+                                # Check if this closes the content string
+                                # Look ahead to see if we have a comma or closing brace
+                                j = i + 1
+                                while j < len(text) and text[j] in ' \t\n\r':
+                                    j += 1
+                                if j >= len(text) or text[j] in ',}]':
+                                    # This closes the content string
+                                    in_content_value = False
+                                    result.append(text[i])
+                                    i += 1
+                                else:
+                                    # Escaped quote
+                                    result.append('\\"')
+                                    i += 1
+                            elif text[i] == '\n' and (i == 0 or text[i-1] != '\\'):
+                                # Unescaped newline - escape it
+                                result.append('\\n')
+                                i += 1
+                            elif text[i] == '\r' and (i == 0 or text[i-1] != '\\'):
+                                # Unescaped carriage return
+                                result.append('\\r')
+                                i += 1
+                            elif text[i] == '\t' and (i == 0 or text[i-1] != '\\'):
+                                # Unescaped tab
+                                result.append('\\t')
+                                i += 1
+                            else:
+                                result.append(text[i])
+                                i += 1
+                        else:
+                            result.append(text[i])
+                            i += 1
+                    
+                    return ''.join(result)
+                
+                json_str_content_fixed = fix_content_newlines_in_json(json_str)
+                try:
+                    return json.loads(json_str_content_fixed)
+                except json.JSONDecodeError:
+                    # Try with json5 if available
+                    if HAS_JSON5:
+                        try:
+                            return json5.loads(json_str_content_fixed)
+                        except:
+                            pass
+            except Exception:
+                pass
+            
+            # Strategy 6: Extract actions array directly using regex (last resort)
             actions_match = re.search(r'"actions"\s*:\s*\[(.*?)\]', json_str, re.DOTALL)
             if actions_match:
                 try:
@@ -320,6 +404,9 @@ class Agent:
                     elif char == '\t':
                         result.append('\\t')
                     # Remove other control characters
+                elif char == '"':
+                    # Unescaped quote inside string - escape it
+                    result.append('\\"')
                 else:
                     result.append(char)
             else:
@@ -327,7 +414,36 @@ class Agent:
                 result.append(char)
             i += 1
         
-        return ''.join(result)
+        # Additional pass: fix unescaped newlines that might have been missed
+        # Look for patterns like: "content": "...\n..." where \n is not escaped
+        fixed = ''.join(result)
+        
+        # Try to fix unescaped newlines in "content" fields more aggressively
+        # This regex finds "content": "..." and fixes newlines inside
+        import re
+        def fix_content_newlines(match):
+            prefix = match.group(1)  # "content": "
+            content = match.group(2)  # the content
+            suffix = match.group(3)  # closing quote
+            
+            # Escape newlines, carriage returns, and tabs
+            content = content.replace('\n', '\\n')
+            content = content.replace('\r', '\\r')
+            content = content.replace('\t', '\\t')
+            # Escape quotes that aren't already escaped
+            content = re.sub(r'(?<!\\)"', '\\"', content)
+            
+            return prefix + content + suffix
+        
+        # Match "content": "..." patterns
+        fixed = re.sub(
+            r'("content"\s*:\s*")(.*?)(")',
+            fix_content_newlines,
+            fixed,
+            flags=re.DOTALL
+        )
+        
+        return fixed
     
     def execute_actions(self, actions: List[Dict[str, Any]], auto_debug: bool = True) -> str:
         """Execute a list of actions and return a summary."""
