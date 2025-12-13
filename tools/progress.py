@@ -163,16 +163,20 @@ def generate_todo_list(actions: List[Dict], design_content: str = "") -> List[st
     # Generate todos from actions
     for i, action in enumerate(actions, 1):
         action_type = action.get('type', '').lower()
-        target = action.get('target', '')
+        target = action.get('target', '').strip()
+        
+        if not target:
+            # Try alternative field names
+            target = action.get('file_path', '').strip() or action.get('file', '').strip()
         
         if action_type == 'create':
-            todos.append(f"Create {target}")
+            todos.append(f"Create {target}" if target else f"Create file (target missing)")
         elif action_type == 'edit':
-            todos.append(f"Edit {target}")
+            todos.append(f"Edit {target}" if target else f"Edit file (target missing)")
         elif action_type == 'delete':
-            todos.append(f"Delete {target}")
+            todos.append(f"Delete {target}" if target else f"Delete file (target missing)")
         elif action_type == 'run':
-            todos.append(f"Run: {target}")
+            todos.append(f"Run: {target}" if target else f"Run command (target missing)")
     
     return todos
 

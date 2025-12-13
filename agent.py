@@ -442,14 +442,28 @@ class Agent:
                                 'execute': 'run'
                             }
                             action_type = action_type_map.get(parsed.get('action', ''), 'create')
-                            target = parsed.get('file_path') or parsed.get('target') or parsed.get('file', '')
-                            content = parsed.get('content') or parsed.get('code') or ''
+                            target = (parsed.get('file_path') or parsed.get('target') or 
+                                     parsed.get('file') or parsed.get('file_name') or '').strip()
+                            content = parsed.get('content') or parsed.get('code') or parsed.get('data') or ''
                             
-                            actions.append({
-                                "type": action_type,
-                                "target": target,
-                                "content": content
-                            })
+                            # Only add if target is not empty
+                            if target:
+                                actions.append({
+                                    "type": action_type,
+                                    "target": target,
+                                    "content": content
+                                })
+                            else:
+                                # Try to infer target from other fields
+                                project_name = parsed.get('project_name', '')
+                                if project_name and action_type == 'create':
+                                    # Might be creating a project structure
+                                    target = f"{project_name}.design"
+                                    actions.append({
+                                        "type": action_type,
+                                        "target": target,
+                                        "content": content
+                                    })
                         # Check if it's already in the correct format
                         elif isinstance(parsed, dict) and 'actions' in parsed:
                             if isinstance(parsed['actions'], list):
@@ -656,8 +670,14 @@ class Agent:
         for action in actions:
             action_type_raw = action.get('type', '').lower()
             action_type = normalize_action_type(action_type_raw)
-            target = action.get('target', '')
+            target = action.get('target', '').strip()
             content = action.get('content', '')
+            
+            # Validate target is not empty for file operations
+            if action_type in ['edit', 'create', 'delete'] and not target:
+                results.append(f"✗ Error: Action type '{action_type}' requires a 'target' field (file path), but target is empty or missing.")
+                results.append(f"   Action data: {action}")
+                continue
             
             if action_type == 'edit':
                 result = self._action_edit(target, content)
@@ -745,8 +765,15 @@ class Agent:
             
             action_type_raw = action.get('type', '').lower()
             action_type = normalize_action_type(action_type_raw)
-            target = action.get('target', '')
+            target = action.get('target', '').strip()
             content = action.get('content', '')
+            
+            # Validate target is not empty for file operations
+            if action_type in ['edit', 'create', 'delete'] and not target:
+                results.append(f"✗ Error: Action type '{action_type}' requires a 'target' field (file path), but target is empty or missing.")
+                results.append(f"   Action data: {action}")
+                progress.complete_subtask(i)
+                continue
             
             # Check if this is a large action that needs breaking down
             if action_type in ['create', 'edit'] and len(content) > 5000:
