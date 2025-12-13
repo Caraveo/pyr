@@ -394,11 +394,73 @@ class Agent:
             
             # Strategy 6: Try to convert alternative JSON formats to standard format
             # Some models return {"action": "...", "file_path": "...", "content": "..."} instead of {"actions": [...]}
+            # Also handle multiple JSON objects separated by newlines
             try:
+                # Try to find all JSON objects in the response
+                json_objects = []
+                i = 0
+                while i < len(json_str):
+                    if json_str[i] == '{':
+                        # Find matching closing brace
+                        depth = 0
+                        start = i
+                        for j in range(i, len(json_str)):
+                            if json_str[j] == '{':
+                                depth += 1
+                            elif json_str[j] == '}':
+                                depth -= 1
+                                if depth == 0:
+                                    # Found complete object
+                                    obj_str = json_str[start:j+1]
+                                    try:
+                                        parsed = json.loads(obj_str)
+                                        json_objects.append(parsed)
+                                    except:
+                                        pass
+                                    i = j + 1
+                                    break
+                        else:
+                            i += 1
+                    else:
+                        i += 1
+                
+                # Process all found JSON objects
+                if json_objects:
+                    actions = []
+                    for parsed in json_objects:
+                        # Check if it's a single action object
+                        if isinstance(parsed, dict) and 'action' in parsed:
+                            # Convert single action to actions array format
+                            action_type_map = {
+                                'create_project': 'create',
+                                'add_file': 'create',
+                                'create_file': 'create',
+                                'edit_file': 'edit',
+                                'update_file': 'edit',
+                                'delete_file': 'delete',
+                                'run_command': 'run',
+                                'execute': 'run'
+                            }
+                            action_type = action_type_map.get(parsed.get('action', ''), 'create')
+                            target = parsed.get('file_path') or parsed.get('target') or parsed.get('file', '')
+                            content = parsed.get('content') or parsed.get('code') or ''
+                            
+                            actions.append({
+                                "type": action_type,
+                                "target": target,
+                                "content": content
+                            })
+                        # Check if it's already in the correct format
+                        elif isinstance(parsed, dict) and 'actions' in parsed:
+                            if isinstance(parsed['actions'], list):
+                                actions.extend(parsed['actions'])
+                    
+                    if actions:
+                        return {"actions": actions}
+                
+                # Try single object parse
                 parsed = json.loads(json_str)
-                # Check if it's a single action object
                 if isinstance(parsed, dict) and 'action' in parsed:
-                    # Convert single action to actions array format
                     action_type_map = {
                         'create_project': 'create',
                         'add_file': 'create',
