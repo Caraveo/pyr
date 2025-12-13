@@ -7,6 +7,7 @@ A fully local AI development toolchain powered by Ollama.
 import sys
 import os
 import json
+import re
 import argparse
 from pathlib import Path
 from typing import List, Dict, Optional, Any
@@ -112,7 +113,7 @@ class Agent:
         return "\n".join(prompt_parts)
     
     def parse_response(self, response: str) -> Optional[Dict[str, Any]]:
-        """Parse JSON response from the model."""
+        """Parse JSON response from the model with robust error handling."""
         try:
             # Try to extract JSON from response
             response = response.strip()
@@ -126,10 +127,72 @@ class Agent:
                 return None
             
             json_str = response[start:end]
-            return json.loads(json_str)
+            
+            # Strategy 1: Try parsing as-is first
+            try:
+                return json.loads(json_str)
+            except json.JSONDecodeError:
+                pass
+            
+            # Strategy 2: Fix unescaped control characters in string values
+            # This function properly escapes control chars within JSON strings
+            def fix_json_strings(text):
+                result = []
+                in_string = False
+                escape_next = False
+                i = 0
+                while i < len(text):
+                    char = text[i]
+                    
+                    if escape_next:
+                        result.append(char)
+                        escape_next = False
+                    elif char == '\\':
+                        result.append(char)
+                        escape_next = True
+                    elif char == '"' and not escape_next:
+                        in_string = not in_string
+                        result.append(char)
+                    elif in_string:
+                        # We're inside a string value
+                        if ord(char) < 32:  # Control character
+                            # Escape common control characters
+                            if char == '\n':
+                                result.append('\\n')
+                            elif char == '\r':
+                                result.append('\\r')
+                            elif char == '\t':
+                                result.append('\\t')
+                            # Remove other control characters (0x00-0x1F)
+                            # They're not valid in JSON strings
+                        else:
+                            result.append(char)
+                    else:
+                        # Outside string - keep as-is
+                        result.append(char)
+                    i += 1
+                return ''.join(result)
+            
+            json_str_cleaned = fix_json_strings(json_str)
+            
+            # Try parsing the cleaned version
+            try:
+                return json.loads(json_str_cleaned)
+            except json.JSONDecodeError as e:
+                print(f"Error parsing JSON after cleanup: {e}", file=sys.stderr)
+                # Show more context around the error
+                error_pos = getattr(e, 'pos', None)
+                if error_pos:
+                    start_pos = max(0, error_pos - 100)
+                    end_pos = min(len(json_str_cleaned), error_pos + 100)
+                    print(f"Context around error (pos {error_pos}):", file=sys.stderr)
+                    print(json_str_cleaned[start_pos:end_pos], file=sys.stderr)
+                else:
+                    print(f"Problematic JSON (first 1000 chars): {json_str_cleaned[:1000]}", file=sys.stderr)
+                return None
         
-        except json.JSONDecodeError as e:
-            print(f"Error parsing JSON: {e}", file=sys.stderr)
+        except Exception as e:
+            print(f"Unexpected error parsing JSON: {e}", file=sys.stderr)
             print(f"Response was: {response[:500]}", file=sys.stderr)
             return None
     
