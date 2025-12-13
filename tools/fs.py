@@ -171,3 +171,10 @@ def find_design_file(root_dir: Path) -> Optional[Path]:
     
     return None
 
+
+def find_all_design_files(root_dir: Path) -> List[Path]:
+    """Find all .design files in the root directory."""
+    root_dir = Path(root_dir).resolve()
+    design_files = list(root_dir.glob("*.design"))
+    return sorted(design_files)
+

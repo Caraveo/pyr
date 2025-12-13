@@ -20,7 +20,8 @@ from tools.fs import (
     read_file,
     write_file,
     delete_file,
-    find_design_file
+    find_design_file,
+    find_all_design_files
 )
 from tools.shell import (
     run_command,
@@ -38,11 +39,12 @@ MODES = ['code', 'design', 'craft', 'debug', 'test']
 class Agent:
     """Main agent class that handles AI interactions and actions."""
     
-    def __init__(self, mode: str, cwd: Optional[Path] = None):
+    def __init__(self, mode: str, cwd: Optional[Path] = None, design_files: Optional[List[Path]] = None):
         self.mode = mode
         self.cwd = Path(cwd) if cwd else Path.cwd()
         self.conversation_history: List[Dict[str, str]] = []
         self.project_context: Dict[str, str] = {}
+        self.design_files: List[Path] = design_files or []
         
         # Load prompt
         prompt_file = Path(__file__).parent / 'prompts' / f'{mode}.txt'
@@ -54,6 +56,10 @@ class Agent:
         
         # Load project context
         self.load_context()
+        
+        # For craft mode, load design files if provided
+        if mode == 'craft' and self.design_files:
+            self.load_design_files()
     
     def load_context(self):
         """Load project context and design document if available."""
@@ -68,6 +74,17 @@ class Agent:
                 if design_content:
                     self.project_context['__design__'] = design_content
     
+    def load_design_files(self):
+        """Load design files for craft mode."""
+        for design_file in self.design_files:
+            if design_file.exists():
+                design_content = read_file(design_file)
+                if design_content:
+                    # Store with filename as key
+                    key = f"__design__{design_file.name}"
+                    self.project_context[key] = design_content
+                    print(f"Loaded design file: {design_file.name}", file=sys.stderr)
+    
     def build_prompt(self, user_input: str) -> str:
         """Build the full prompt including context and history."""
         prompt_parts = [self.base_prompt]
@@ -79,7 +96,8 @@ class Agent:
             
             # Format context as file listings
             for file_path, content in list(self.project_context.items())[:50]:  # Limit context size
-                if file_path != '__design__':
+                # Skip design files - they're shown separately
+                if not file_path.startswith('__design__'):
                     prompt_parts.append(f"\n--- {file_path} ---")
                     # Truncate very long files
                     if len(content) > 5000:
@@ -89,11 +107,23 @@ class Agent:
             if len(self.project_context) > 50:
                 prompt_parts.append(f"\n... and {len(self.project_context) - 50} more files")
         
-        # Add design document if in design mode
-        if self.mode == 'design' and '__design__' in self.project_context:
-            prompt_parts.append("\n\nEXISTING DESIGN DOCUMENT:")
-            prompt_parts.append("=" * 80)
-            prompt_parts.append(self.project_context['__design__'])
+        # Add design document(s) if available
+        design_keys = [k for k in self.project_context.keys() if k.startswith('__design__')]
+        if design_keys:
+            if self.mode == 'craft':
+                prompt_parts.append("\n\n⚠️  PRIMARY INSTRUCTION: IMPLEMENT THE DESIGN(S) BELOW ⚠️")
+                prompt_parts.append("=" * 80)
+            else:
+                prompt_parts.append("\n\nDESIGN DOCUMENT(S):")
+                prompt_parts.append("=" * 80)
+            for key in design_keys:
+                design_name = key.replace('__design__', '') or 'design document'
+                prompt_parts.append(f"\n--- {design_name} ---")
+                prompt_parts.append(self.project_context[key])
+            if self.mode == 'craft':
+                prompt_parts.append("\n" + "=" * 80)
+                prompt_parts.append("Use the design document(s) above as your implementation guide.")
+                prompt_parts.append("=" * 80)
         
         # Add conversation history
         if self.conversation_history:
@@ -372,13 +402,55 @@ def main():
         print("Please install Ollama from https://ollama.ai", file=sys.stderr)
         sys.exit(1)
     
+    # Handle craft mode special cases
+    design_files = None
+    user_input = None
+    cwd = Path(args.cwd) if args.cwd else Path.cwd()
+    
+    if args.mode == 'craft':
+        if not args.input:
+            # craft by itself - find all .design files
+            design_files = find_all_design_files(cwd)
+            if design_files:
+                print(f"Found {len(design_files)} design file(s):", file=sys.stderr)
+                for df in design_files:
+                    print(f"  - {df.name}", file=sys.stderr)
+                user_input = "Implement the design(s) from the loaded design files."
+            else:
+                print("No .design files found in current directory.", file=sys.stderr)
+                print("Usage:", file=sys.stderr)
+                print("  craft                    # Use all .design files in current directory", file=sys.stderr)
+                print("  craft project.design      # Use specific design file", file=sys.stderr)
+                print('  craft "your prompt"       # Use prompt to craft code', file=sys.stderr)
+                sys.exit(1)
+        else:
+            # Check if first argument is a .design file
+            first_arg = args.input[0]
+            potential_design_file = cwd / first_arg
+            
+            if potential_design_file.exists() and potential_design_file.suffix == '.design':
+                # craft project.design - use that specific design file
+                design_files = [potential_design_file]
+                print(f"Using design file: {potential_design_file.name}", file=sys.stderr)
+                # Check if there's additional input
+                if len(args.input) > 1:
+                    user_input = ' '.join(args.input[1:])
+                else:
+                    user_input = "Implement the design from the loaded design file."
+            else:
+                # craft "prompt" - use the prompt
+                user_input = ' '.join(args.input)
+    else:
+        # For other modes, use input as-is
+        if args.input:
+            user_input = ' '.join(args.input)
+    
     # Create agent
-    agent = Agent(args.mode, cwd=args.cwd)
+    agent = Agent(args.mode, cwd=args.cwd, design_files=design_files)
     
     # Handle input
-    if args.input:
+    if user_input:
         # Non-interactive mode
-        user_input = ' '.join(args.input)
         result = agent.process(user_input)
         print(result)
     else:
