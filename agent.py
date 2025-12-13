@@ -520,9 +520,40 @@ class Agent:
                 error_summary.append(f"Error: {cmd_info['error']}")
                 error_summary.append("")
             
+            # Add structure information if available
+            structure_info = ""
+            if self.detected_structure:
+                assumptions = self.detected_structure.get('assumptions', {})
+                structure_info = f"\n\nIMPORTANT - PROJECT STRUCTURE REQUIREMENTS:\n"
+                structure_info += f"Language: {assumptions.get('language', 'Unknown')}\n"
+                structure_info += f"Package Manager: {assumptions.get('package_manager', 'Unknown')}\n"
+                
+                # Add critical file locations
+                structure_def = assumptions.get('structure', {})
+                if structure_def:
+                    structure_info += f"\nCRITICAL FILE LOCATIONS (must be at project root, not in subdirectories):\n"
+                    for file_path, file_info in structure_def.items():
+                        if file_info.get('required', False):
+                            # Check if this is a root-level file (no directory prefix)
+                            if '/' not in file_path and '\\' not in file_path:
+                                structure_info += f"  - {file_path}: MUST be at project root (./{file_path}), NOT in Sources/ or subdirectories\n"
+                            else:
+                                structure_info += f"  - {file_path}: {file_info.get('description', '')}\n"
+                
+                structure_info += f"\nCommon mistakes to avoid:\n"
+                structure_info += f"- Package.swift, package.json, Cargo.toml, go.mod, requirements.txt MUST be at project root\n"
+                structure_info += f"- Do NOT create these files in subdirectories like Sources/, src/, etc.\n"
+                structure_info += f"- Check the current directory structure before creating files\n"
+            
             debug_prompt = f"""The following commands failed. Analyze the errors and fix them:
 
 {chr(10).join(error_summary)}
+{structure_info}
+
+CRITICAL: Before creating any files, check where they should be located.
+- Manifest files (Package.swift, package.json, Cargo.toml, go.mod, requirements.txt) MUST be at the PROJECT ROOT
+- Do NOT create manifest files in subdirectories
+- Verify file locations match the project structure requirements above
 
 Examine the project structure, identify what's missing or incorrect, and fix it.
 Then re-run the failed commands to verify the fix works."""
