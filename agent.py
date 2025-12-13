@@ -392,7 +392,41 @@ class Agent:
             except Exception:
                 pass
             
-            # Strategy 6: Extract actions array directly using regex (last resort)
+            # Strategy 6: Try to convert alternative JSON formats to standard format
+            # Some models return {"action": "...", "file_path": "...", "content": "..."} instead of {"actions": [...]}
+            try:
+                parsed = json.loads(json_str)
+                # Check if it's a single action object
+                if isinstance(parsed, dict) and 'action' in parsed:
+                    # Convert single action to actions array format
+                    action_type_map = {
+                        'create_project': 'create',
+                        'add_file': 'create',
+                        'create_file': 'create',
+                        'edit_file': 'edit',
+                        'update_file': 'edit',
+                        'delete_file': 'delete',
+                        'run_command': 'run',
+                        'execute': 'run'
+                    }
+                    action_type = action_type_map.get(parsed.get('action', ''), 'create')
+                    target = parsed.get('file_path') or parsed.get('target') or parsed.get('file', '')
+                    content = parsed.get('content') or parsed.get('code') or ''
+                    
+                    return {
+                        "actions": [{
+                            "type": action_type,
+                            "target": target,
+                            "content": content
+                        }]
+                    }
+                # Check if it's already in the correct format
+                elif isinstance(parsed, dict) and 'actions' in parsed:
+                    return parsed
+            except:
+                pass
+            
+            # Strategy 7: Extract actions array directly using regex (last resort)
             actions_match = re.search(r'"actions"\s*:\s*\[(.*?)\]', json_str, re.DOTALL)
             if actions_match:
                 try:
