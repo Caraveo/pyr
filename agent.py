@@ -226,9 +226,10 @@ class Agent:
             print(f"Response was: {response[:500]}", file=sys.stderr)
             return None
     
-    def execute_actions(self, actions: List[Dict[str, Any]]) -> str:
+    def execute_actions(self, actions: List[Dict[str, Any]], auto_debug: bool = True) -> str:
         """Execute a list of actions and return a summary."""
         results = []
+        failed_commands = []
         
         for action in actions:
             action_type = action.get('type', '').lower()
@@ -250,6 +251,14 @@ class Agent:
             elif action_type == 'run':
                 result = self._action_run(target, content)
                 results.append(result)
+                
+                # Check if command failed and capture error info
+                if result.startswith('✗'):
+                    failed_commands.append({
+                        'command': target,
+                        'purpose': content,
+                        'error': result
+                    })
             
             elif action_type == 'message':
                 result = f"Message: {content}"
@@ -259,7 +268,108 @@ class Agent:
             else:
                 results.append(f"Unknown action type: {action_type}")
         
+        # Auto-debug if commands failed and auto_debug is enabled
+        if failed_commands and auto_debug and self.mode in ['craft', 'code']:
+            print("\n" + "="*80, file=sys.stderr)
+            print("⚠️  ERRORS DETECTED - Entering iterative debug mode", file=sys.stderr)
+            print("="*80, file=sys.stderr)
+            
+            debug_result = self._iterative_debug(failed_commands)
+            results.append("\n--- Debug Session ---")
+            results.append(debug_result)
+        
         return "\n".join(results)
+    
+    def _iterative_debug(self, failed_commands: List[Dict[str, Any]], max_iterations: int = 5) -> str:
+        """Iteratively debug and fix command failures."""
+        debug_agent = Agent('debug', cwd=self.cwd)
+        debug_agent.project_context = self.project_context.copy()
+        debug_agent.conversation_history = self.conversation_history.copy()
+        
+        iteration = 0
+        all_fixed = False
+        
+        while iteration < max_iterations and not all_fixed:
+            iteration += 1
+            print(f"\n🔧 Debug iteration {iteration}/{max_iterations}", file=sys.stderr)
+            
+            # Build debug prompt with all failed commands
+            error_summary = []
+            for cmd_info in failed_commands:
+                error_summary.append(f"Command: {cmd_info['command']}")
+                error_summary.append(f"Purpose: {cmd_info['purpose']}")
+                error_summary.append(f"Error: {cmd_info['error']}")
+                error_summary.append("")
+            
+            debug_prompt = f"""The following commands failed. Analyze the errors and fix them:
+
+{chr(10).join(error_summary)}
+
+Examine the project structure, identify what's missing or incorrect, and fix it.
+Then re-run the failed commands to verify the fix works."""
+            
+            # Process with debug agent
+            debug_result = debug_agent.process(debug_prompt)
+            
+            # Check if debug agent ran any commands
+            # Extract new failed commands from the result
+            if "✗ Command failed" in debug_result:
+                # Debug agent tried to fix but command still failed
+                # Update failed_commands with new error info
+                print(f"⚠️  Issue persists after iteration {iteration}", file=sys.stderr)
+                
+                # Check if we made progress (created/fixed files)
+                if any(keyword in debug_result for keyword in ["✓ Created", "✓ Edited", "✓ Command succeeded"]):
+                    print("Progress made, continuing...", file=sys.stderr)
+                    # Re-check the original commands
+                    new_failed = []
+                    for cmd_info in failed_commands:
+                        returncode, stdout, stderr = run_command(cmd_info['command'], cwd=self.cwd)
+                        if returncode != 0:
+                            new_failed.append({
+                                'command': cmd_info['command'],
+                                'purpose': cmd_info['purpose'],
+                                'error': f"✗ Command failed (exit {returncode}): {cmd_info['command']}\n{stdout}\n{stderr}"
+                            })
+                    failed_commands = new_failed
+                    if not new_failed:
+                        all_fixed = True
+                        print("✓ All issues resolved!", file=sys.stderr)
+                else:
+                    print("No progress made, may need manual intervention", file=sys.stderr)
+                    break
+            else:
+                # No command failures in debug result - might be fixed
+                # Verify by re-running original commands
+                new_failed = []
+                for cmd_info in failed_commands:
+                    returncode, stdout, stderr = run_command(cmd_info['command'], cwd=self.cwd)
+                    if returncode != 0:
+                        new_failed.append({
+                            'command': cmd_info['command'],
+                            'purpose': cmd_info['purpose'],
+                            'error': f"✗ Command failed (exit {returncode}): {cmd_info['command']}\n{stdout}\n{stderr}"
+                        })
+                    else:
+                        print(f"✓ Verified fix: {cmd_info['command']}", file=sys.stderr)
+                
+                failed_commands = new_failed
+                if not new_failed:
+                    all_fixed = True
+                    print("✓ All issues resolved!", file=sys.stderr)
+                    break
+            
+            # Update our context with debug agent's changes
+            self.project_context.update(debug_agent.project_context)
+            self.conversation_history.extend(debug_agent.conversation_history[-1:])  # Add last debug exchange
+            
+            # Reload context to pick up any file changes
+            self.load_context()
+        
+        if all_fixed:
+            return f"✓ Debug complete: All issues resolved after {iteration} iteration(s)"
+        else:
+            return f"⚠️  Debug incomplete: Some issues may remain after {iteration} iteration(s). Manual intervention may be needed."
     
     def _action_edit(self, target: str, content: str) -> str:
         """Edit an existing file."""
@@ -333,7 +443,8 @@ class Agent:
         if returncode == 0:
             return f"✓ Command succeeded: {command}"
         else:
-            return f"✗ Command failed (exit {returncode}): {command}"
+            error_output = f"{stdout}\n{stderr}".strip()
+            return f"✗ Command failed (exit {returncode}): {command}\n{error_output}"
     
     def process(self, user_input: str) -> str:
         """Process user input and return response."""
@@ -360,7 +471,9 @@ class Agent:
         if not actions:
             return "No actions provided in response"
         
-        result = self.execute_actions(actions)
+        # Execute with auto-debug enabled for craft and code modes
+        auto_debug = self.mode in ['craft', 'code']
+        result = self.execute_actions(actions, auto_debug=auto_debug)
         
         # Update conversation history
         self.conversation_history.append({
