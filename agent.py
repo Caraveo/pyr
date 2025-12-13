@@ -257,6 +257,20 @@ class Agent:
             # Try to extract JSON from response
             response = response.strip()
             
+            # Remove markdown code blocks if present
+            # Handle ```json ... ``` or ``` ... ```
+            if response.startswith('```'):
+                # Find the closing ```
+                end_marker = response.find('```', 3)
+                if end_marker != -1:
+                    # Extract content between code blocks
+                    response = response[3:end_marker].strip()
+                    # Remove language tag if present (e.g., "json")
+                    if response.startswith('json'):
+                        response = response[4:].strip()
+                    if response.startswith('\n'):
+                        response = response[1:].strip()
+            
             # Find JSON object in response
             start = response.find('{')
             end = response.rfind('}') + 1
