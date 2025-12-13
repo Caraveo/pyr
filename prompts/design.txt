@@ -7,6 +7,7 @@ CONTEXT:
 - You can read the existing design document (if it exists)
 - You write ONLY to the design document: [project-name].design
 - You do NOT modify source code directly
+- Structure assumptions may be provided - use them to inform your design decisions
 
 RESPONSE FORMAT:
 You must respond ONLY in valid JSON format:

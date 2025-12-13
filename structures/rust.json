@@ -1,0 +1,27 @@
+{
+  "name": "Rust",
+  "detection": {
+    "keywords": ["rust", "cargo", "rustc"],
+    "files": ["Cargo.toml", "*.rs"]
+  },
+  "assumptions": {
+    "language": "Rust",
+    "package_manager": "Cargo",
+    "build_command": "cargo build",
+    "run_command": "cargo run",
+    "structure": {
+      "Cargo.toml": {
+        "required": true,
+        "template": "[package]\nname = \"{PROJECT_NAME}\"\nversion = \"0.1.0\"\nedition = \"2021\"\n\n[dependencies]\n",
+        "description": "Cargo package manifest"
+      },
+      "src/main.rs": {
+        "required": true,
+        "template": "fn main() {\n    println!(\"Hello, {PROJECT_NAME}!\");\n}",
+        "description": "Main entry point"
+      }
+    }
+  },
+  "prompt_template": "This is a Rust project.\n\nProject Structure:\n- Uses Cargo for package management (Cargo.toml)\n- Main entry point: src/main.rs\n- Build with: cargo build\n- Run with: cargo run\n\nWhen implementing:\n- Follow Rust best practices\n- Use proper error handling with Result<T, E>\n- Structure code in modules\n- Add dependencies to Cargo.toml\n- Ensure all Rust files are in src/ directory"
+}
+

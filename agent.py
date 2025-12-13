@@ -33,6 +33,11 @@ from tools.fs import (
     find_design_file,
     find_all_design_files
 )
+from tools.structures import (
+    detect_structure,
+    get_structure_prompt,
+    extract_project_name
+)
 from tools.shell import (
     run_command,
     check_ollama_available,
@@ -49,12 +54,14 @@ MODES = ['code', 'design', 'craft', 'debug', 'test']
 class Agent:
     """Main agent class that handles AI interactions and actions."""
     
-    def __init__(self, mode: str, cwd: Optional[Path] = None, design_files: Optional[List[Path]] = None):
+    def __init__(self, mode: str, cwd: Optional[Path] = None, design_files: Optional[List[Path]] = None, user_input: str = ""):
         self.mode = mode
         self.cwd = Path(cwd) if cwd else Path.cwd()
         self.conversation_history: List[Dict[str, str]] = []
         self.project_context: Dict[str, str] = {}
         self.design_files: List[Path] = design_files or []
+        self.detected_structure: Optional[Dict[str, Any]] = None
+        self.project_name: str = ""
         
         # Load prompt
         prompt_file = Path(__file__).parent / 'prompts' / f'{mode}.txt'
@@ -63,6 +70,14 @@ class Agent:
                 self.base_prompt = f.read()
         else:
             self.base_prompt = f"You are an AI assistant in {mode} mode."
+        
+        # Detect structure (especially for design mode)
+        if mode == 'design' and user_input:
+            self.detected_structure = detect_structure(self.cwd, user_input)
+            self.project_name = extract_project_name(user_input, self.cwd)
+            if self.detected_structure:
+                print(f"Detected structure: {self.detected_structure.get('name', 'Unknown')}", file=sys.stderr)
+                print(f"Project name: {self.project_name}", file=sys.stderr)
         
         # Load project context
         self.load_context()
@@ -116,6 +131,23 @@ class Agent:
             
             if len(self.project_context) > 50:
                 prompt_parts.append(f"\n... and {len(self.project_context) - 50} more files")
+        
+        # Add structure information for design mode
+        if self.mode == 'design' and self.detected_structure:
+            structure_prompt = get_structure_prompt(
+                self.detected_structure,
+                self.project_name,
+                user_input
+            )
+            prompt_parts.append("\n\n" + "=" * 80)
+            prompt_parts.append("⚠️  STRUCTURE ASSUMPTIONS ⚠️")
+            prompt_parts.append("=" * 80)
+            prompt_parts.append("\nThe following structure assumptions have been made based on your request:")
+            prompt_parts.append(structure_prompt)
+            prompt_parts.append("\n" + "=" * 80)
+            prompt_parts.append("IMPORTANT: Include these assumptions in your design document.")
+            prompt_parts.append("Specify the technology stack, file structure, and build/run commands.")
+            prompt_parts.append("=" * 80)
         
         # Add design document(s) if available
         design_keys = [k for k in self.project_context.keys() if k.startswith('__design__')]
@@ -353,7 +385,7 @@ class Agent:
     
     def _iterative_debug(self, failed_commands: List[Dict[str, Any]], max_iterations: int = 5) -> str:
         """Iteratively debug and fix command failures."""
-        debug_agent = Agent('debug', cwd=self.cwd)
+        debug_agent = Agent('debug', cwd=self.cwd, user_input="")
         debug_agent.project_context = self.project_context.copy()
         debug_agent.conversation_history = self.conversation_history.copy()
         
@@ -629,8 +661,8 @@ def main():
         if args.input:
             user_input = ' '.join(args.input)
     
-    # Create agent
-    agent = Agent(args.mode, cwd=args.cwd, design_files=design_files)
+    # Create agent (pass user_input for structure detection in design mode)
+    agent = Agent(args.mode, cwd=args.cwd, design_files=design_files, user_input=user_input or "")
     
     # Handle input
     if user_input:

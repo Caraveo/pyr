@@ -1,0 +1,34 @@
+{
+  "name": "Swift/SwiftUI macOS App",
+  "detection": {
+    "keywords": ["swift", "swiftui", "macos", "ios", "app", "application"],
+    "files": ["Package.swift", "*.swift"]
+  },
+  "assumptions": {
+    "language": "Swift",
+    "framework": "SwiftUI",
+    "platform": "macOS",
+    "package_manager": "Swift Package Manager",
+    "build_command": "swift build",
+    "run_command": "swift run",
+    "structure": {
+      "Package.swift": {
+        "required": true,
+        "template": "// swift-tools-version: 5.9\nimport PackageDescription\n\nlet package = Package(\n    name: \"{PROJECT_NAME}\",\n    platforms: [\n        .macOS(.v13)\n    ],\n    products: [\n        .executable(\n            name: \"{PROJECT_NAME}\",\n            targets: [\"{PROJECT_NAME}\"]\n        ),\n    ],\n    dependencies: [],\n    targets: [\n        .executableTarget(\n            name: \"{PROJECT_NAME}\",\n            dependencies: []\n        ),\n    ]\n)",
+        "description": "Swift Package Manager manifest file"
+      },
+      "Sources/{PROJECT_NAME}/App.swift": {
+        "required": true,
+        "template": "import SwiftUI\n\n@main\nstruct {PROJECT_NAME}App: App {\n    var body: some Scene {\n        WindowGroup {\n            ContentView()\n        }\n    }\n}",
+        "description": "Main app entry point"
+      },
+      "Sources/{PROJECT_NAME}/ContentView.swift": {
+        "required": true,
+        "template": "import SwiftUI\n\nstruct ContentView: View {\n    var body: some View {\n        VStack {\n            Text(\"Hello, {PROJECT_NAME}!\")\n                .font(.largeTitle)\n                .padding()\n        }\n        .frame(width: 400, height: 300)\n    }\n}\n\n#Preview {\n    ContentView()\n}",
+        "description": "Main content view"
+      }
+    }
+  },
+  "prompt_template": "This is a Swift/SwiftUI macOS application project.\n\nProject Structure:\n- Uses Swift Package Manager (Package.swift)\n- Main entry point: Sources/{PROJECT_NAME}/App.swift\n- Views: Sources/{PROJECT_NAME}/*.swift\n- Build with: swift build\n- Run with: swift run\n\nWhen implementing:\n- Follow SwiftUI best practices\n- Use @State, @Binding, @ObservableObject as appropriate\n- Structure views in separate files\n- Include Package.swift with proper dependencies\n- Ensure all Swift files are in Sources/{PROJECT_NAME}/ directory"
+}
+

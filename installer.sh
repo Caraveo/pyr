@@ -25,6 +25,7 @@ echo "Creating installation directory: $INSTALL_DIR"
 mkdir -p "$INSTALL_DIR"
 mkdir -p "$INSTALL_DIR/tools"
 mkdir -p "$INSTALL_DIR/prompts"
+mkdir -p "$INSTALL_DIR/structures"
 
 # Copy files
 echo "Copying agent files..."
@@ -32,8 +33,10 @@ cp "$SCRIPT_DIR/agent.py" "$INSTALL_DIR/"
 cp "$SCRIPT_DIR/tools/fs.py" "$INSTALL_DIR/tools/"
 cp "$SCRIPT_DIR/tools/shell.py" "$INSTALL_DIR/tools/"
 cp "$SCRIPT_DIR/tools/diff.py" "$INSTALL_DIR/tools/"
+cp "$SCRIPT_DIR/tools/structures.py" "$INSTALL_DIR/tools/" 2>/dev/null || true
 cp "$SCRIPT_DIR/tools/__init__.py" "$INSTALL_DIR/tools/" 2>/dev/null || touch "$INSTALL_DIR/tools/__init__.py"
 cp "$SCRIPT_DIR/prompts/"*.txt "$INSTALL_DIR/prompts/"
+cp "$SCRIPT_DIR/structures/"*.json "$INSTALL_DIR/structures/" 2>/dev/null || true
 
 # Make agent.py executable
 chmod +x "$INSTALL_DIR/agent.py"

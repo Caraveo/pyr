@@ -1,0 +1,27 @@
+{
+  "name": "Go",
+  "detection": {
+    "keywords": ["go", "golang", "go.mod"],
+    "files": ["go.mod", "*.go"]
+  },
+  "assumptions": {
+    "language": "Go",
+    "package_manager": "go mod",
+    "build_command": "go build",
+    "run_command": "go run .",
+    "structure": {
+      "go.mod": {
+        "required": true,
+        "template": "module {PROJECT_NAME}\n\ngo 1.21\n",
+        "description": "Go module file"
+      },
+      "main.go": {
+        "required": true,
+        "template": "package main\n\nimport \"fmt\"\n\nfunc main() {\n    fmt.Println(\"Hello, {PROJECT_NAME}!\")\n}",
+        "description": "Main entry point"
+      }
+    }
+  },
+  "prompt_template": "This is a Go project.\n\nProject Structure:\n- Uses Go modules (go.mod)\n- Main entry point: main.go\n- Build with: go build\n- Run with: go run .\n\nWhen implementing:\n- Follow Go conventions and idioms\n- Use proper error handling\n- Structure code in packages\n- Add dependencies with: go get <package>\n- Ensure go.mod is properly maintained"
+}
+

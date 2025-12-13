@@ -1,0 +1,33 @@
+{
+  "name": "Python",
+  "detection": {
+    "keywords": ["python", "py", "django", "flask", "fastapi", "pip"],
+    "files": ["requirements.txt", "setup.py", "pyproject.toml", "*.py"]
+  },
+  "assumptions": {
+    "language": "Python",
+    "version": "3.7+",
+    "package_manager": "pip",
+    "build_command": "pip install -r requirements.txt",
+    "run_command": "python3 main.py",
+    "structure": {
+      "requirements.txt": {
+        "required": true,
+        "template": "# {PROJECT_NAME} dependencies\n# Add your dependencies here, one per line\n",
+        "description": "Python dependencies file"
+      },
+      "main.py": {
+        "required": true,
+        "template": "#!/usr/bin/env python3\n\"\"\"\n{PROJECT_NAME}\n{PROJECT_DESCRIPTION}\n\"\"\"\n\ndef main():\n    print(\"Hello, {PROJECT_NAME}!\")\n\n\nif __name__ == \"__main__\":\n    main()",
+        "description": "Main entry point"
+      },
+      ".gitignore": {
+        "required": false,
+        "template": "__pycache__/\n*.py[cod]\n*$py.class\n*.so\n.Python\nvenv/\nenv/\n.env\n.DS_Store",
+        "description": "Git ignore file"
+      }
+    }
+  },
+  "prompt_template": "This is a Python project.\n\nProject Structure:\n- Uses requirements.txt for dependencies\n- Main entry point: main.py (or as specified)\n- Install dependencies: pip install -r requirements.txt\n- Run with: python3 main.py\n\nWhen implementing:\n- Follow PEP 8 style guide\n- Use type hints where appropriate\n- Structure code in modules/packages\n- Include proper docstrings\n- Add dependencies to requirements.txt"
+}
+

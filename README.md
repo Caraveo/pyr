@@ -160,7 +160,7 @@ design → code → craft → debug → test
 ### Project Structure
 
 ```
-local-ai-agent/
+pyr/
 ├── agent.py              # Core runtime with Ollama integration
 ├── installer.sh          # System-wide installation script
 ├── README.md             # This file
@@ -170,10 +170,17 @@ local-ai-agent/
 │   ├── craft.txt         # Craft agent prompt
 │   ├── debug.txt         # Debug agent prompt
 │   └── test.txt          # Test agent prompt
+├── structures/           # Project structure templates
+│   ├── swift_swiftui.json
+│   ├── javascript_nodejs.json
+│   ├── python.json
+│   ├── rust.json
+│   └── go.json
 └── tools/
     ├── fs.py             # File system helpers
     ├── shell.py          # Shell execution helpers
-    └── diff.py           # Diff generation
+    ├── diff.py           # Diff generation
+    └── structures.py     # Structure detection
 ```
 
 ### Safety Features
@@ -189,6 +196,93 @@ local-ai-agent/
 - Python 3.7+
 - Ollama installed and running
 - Model: `qwen2.5-coder:14b` (or set `LOCAL_AI_MODEL`)
+
+---
+
+## 🏗️ Structures
+
+Pyr automatically detects project types and makes intelligent assumptions about the technology stack, file structure, and build commands.
+
+### How It Works
+
+When you use the `design` command, Pyr analyzes your request and existing files to detect the appropriate project structure:
+
+- **Swift/SwiftUI**: Detects macOS/iOS apps, assumes Swift Package Manager structure
+- **JavaScript/Node.js**: Detects web/Node projects, assumes npm/package.json structure
+- **Python**: Detects Python projects, assumes requirements.txt structure
+- **Rust**: Detects Rust projects, assumes Cargo structure
+- **Go**: Detects Go projects, assumes go.mod structure
+
+### Example
+
+```bash
+design "design a simple to-do app for macOS"
+```
+
+Pyr will:
+1. Detect "macOS" keyword → assumes Swift/SwiftUI structure
+2. Extract project name (or use directory name)
+3. Include structure assumptions in the design document:
+   - Language: Swift
+   - Framework: SwiftUI
+   - Platform: macOS
+   - Package Manager: Swift Package Manager
+   - Build: `swift build`
+   - Run: `swift run`
+   - Required files: `Package.swift`, `Sources/{Project}/App.swift`, etc.
+
+### Customizing Structures
+
+Structures are defined in JSON files in the `structures/` directory. Each structure includes:
+
+- **Detection rules**: Keywords and file patterns to identify the structure
+- **Assumptions**: Technology stack, build commands, file structure
+- **Templates**: File templates for required files
+- **Prompt template**: Instructions for the AI agent
+
+You can:
+- **Modify existing structures**: Edit the JSON files in `structures/`
+- **Create new structures**: Add new JSON files following the same format
+- **Override assumptions**: The design document can specify different choices
+
+### Available Structures
+
+- `swift_swiftui.json` - Swift/SwiftUI macOS/iOS apps
+- `javascript_nodejs.json` - JavaScript/Node.js projects
+- `python.json` - Python projects
+- `rust.json` - Rust projects
+- `go.json` - Go projects
+
+### Structure Format
+
+Each structure JSON file contains:
+
+```json
+{
+  "name": "Structure Name",
+  "detection": {
+    "keywords": ["keyword1", "keyword2"],
+    "files": ["file.pattern", "*.ext"]
+  },
+  "assumptions": {
+    "language": "Language",
+    "framework": "Framework",
+    "package_manager": "Package Manager",
+    "build_command": "build command",
+    "run_command": "run command",
+    "structure": {
+      "file/path": {
+        "required": true,
+        "template": "file template with {PLACEHOLDERS}",
+        "description": "file description"
+      }
+    }
+  },
+  "prompt_template": "Instructions for the AI agent"
+}
+```
+
+**Note**: Structures make assumptions to speed up development. You can always override these in your design document or modify the structure files to match your preferences.
 
 ---
 

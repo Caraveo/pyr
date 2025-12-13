@@ -1,0 +1,33 @@
+{
+  "name": "JavaScript/Node.js",
+  "detection": {
+    "keywords": ["javascript", "js", "node", "nodejs", "npm", "express", "web"],
+    "files": ["package.json", "*.js", "*.ts"]
+  },
+  "assumptions": {
+    "language": "JavaScript",
+    "runtime": "Node.js",
+    "package_manager": "npm",
+    "build_command": "npm install && npm run build",
+    "run_command": "npm start",
+    "structure": {
+      "package.json": {
+        "required": true,
+        "template": "{\n  \"name\": \"{PROJECT_NAME}\",\n  \"version\": \"1.0.0\",\n  \"description\": \"{PROJECT_DESCRIPTION}\",\n  \"main\": \"index.js\",\n  \"scripts\": {\n    \"start\": \"node index.js\",\n    \"dev\": \"node index.js\",\n    \"test\": \"echo \\\"Error: no test specified\\\" && exit 1\"\n  },\n  \"keywords\": [],\n  \"author\": \"\",\n  \"license\": \"ISC\",\n  \"dependencies\": {}\n}",
+        "description": "Node.js package manifest"
+      },
+      "index.js": {
+        "required": true,
+        "template": "// {PROJECT_NAME}\n// Entry point\n\nconsole.log('Hello, {PROJECT_NAME}!');",
+        "description": "Main entry point"
+      },
+      ".gitignore": {
+        "required": false,
+        "template": "node_modules/\n*.log\n.env\n.DS_Store",
+        "description": "Git ignore file"
+      }
+    }
+  },
+  "prompt_template": "This is a JavaScript/Node.js project.\n\nProject Structure:\n- Uses npm/package.json for dependencies\n- Main entry point: index.js (or specified in package.json)\n- Install dependencies: npm install\n- Run with: npm start or node index.js\n\nWhen implementing:\n- Follow Node.js best practices\n- Use ES6+ syntax\n- Structure code in modules\n- Include proper error handling\n- Add dependencies to package.json"
+}
+
