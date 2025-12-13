@@ -515,8 +515,35 @@ class Agent:
         results = []
         failed_commands = []
         
+        # Normalize action types - handle common variations
+        def normalize_action_type(action_type: str) -> str:
+            action_type = action_type.lower().strip()
+            # Map common variations to standard types
+            variations = {
+                'createfile': 'create',
+                'create_file': 'create',
+                'write': 'create',
+                'writefile': 'create',
+                'editfile': 'edit',
+                'edit_file': 'edit',
+                'modify': 'edit',
+                'update': 'edit',
+                'deletefile': 'delete',
+                'delete_file': 'delete',
+                'remove': 'delete',
+                'execute': 'run',
+                'exec': 'run',
+                'command': 'run',
+                'runcommand': 'run',
+                'msg': 'message',
+                'say': 'message',
+                'tell': 'message'
+            }
+            return variations.get(action_type, action_type)
+        
         for action in actions:
-            action_type = action.get('type', '').lower()
+            action_type_raw = action.get('type', '').lower()
+            action_type = normalize_action_type(action_type_raw)
             target = action.get('target', '')
             content = action.get('content', '')
             
@@ -550,7 +577,14 @@ class Agent:
                 print(content)
             
             else:
-                results.append(f"Unknown action type: {action_type}")
+                # If normalization didn't help, show helpful error
+                results.append(f"Unknown action type: '{action_type_raw}' (normalized: '{action_type}')")
+                results.append(f"Valid action types are: edit, create, delete, run, message")
+                # Try to infer intent
+                if 'file' in action_type_raw or 'write' in action_type_raw:
+                    results.append(f"Hint: Did you mean 'create'? Attempting to create file anyway...")
+                    result = self._action_create(target, content)
+                    results.append(result)
         
         # Auto-debug if commands failed and auto_debug is enabled
         if failed_commands and auto_debug and self.mode in ['craft', 'code']:
