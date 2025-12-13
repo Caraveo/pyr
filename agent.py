@@ -45,6 +45,8 @@ from tools.shell import (
     run_ollama
 )
 from tools.diff import generate_unified_diff
+from tools.progress import ProgressTracker, break_down_tasks, generate_todo_list
+from tools.progress import ProgressTracker, break_down_tasks, generate_todo_list
 
 
 # Agent modes
@@ -598,6 +600,124 @@ class Agent:
         
         return "\n".join(results)
     
+    def execute_actions_with_progress(self, actions: List[Dict[str, Any]], progress: ProgressTracker, auto_debug: bool = True) -> str:
+        """Execute actions with progress tracking."""
+        results = []
+        failed_commands = []
+        
+        # Normalize action types - handle common variations
+        def normalize_action_type(action_type: str) -> str:
+            action_type = action_type.lower().strip()
+            variations = {
+                'createfile': 'create',
+                'create_file': 'create',
+                'write': 'create',
+                'writefile': 'create',
+                'editfile': 'edit',
+                'edit_file': 'edit',
+                'modify': 'edit',
+                'update': 'edit',
+                'deletefile': 'delete',
+                'delete_file': 'delete',
+                'remove': 'delete',
+                'execute': 'run',
+                'exec': 'run',
+                'command': 'run',
+                'runcommand': 'run',
+                'msg': 'message',
+                'say': 'message',
+                'tell': 'message'
+            }
+            return variations.get(action_type, action_type)
+        
+        for i, action in enumerate(actions):
+            progress.start_subtask(i)
+            
+            action_type_raw = action.get('type', '').lower()
+            action_type = normalize_action_type(action_type_raw)
+            target = action.get('target', '')
+            content = action.get('content', '')
+            
+            # Check if this is a large action that needs breaking down
+            if action_type in ['create', 'edit'] and len(content) > 5000:
+                # Break down large content
+                print(f"\n📦 Breaking down large task: {target}", file=sys.stderr)
+                chunks = break_down_tasks(content)
+                print(f"   Split into {len(chunks)} chunks", file=sys.stderr)
+                
+                # Process chunks
+                for chunk_idx, chunk in enumerate(chunks):
+                    chunk_action = action.copy()
+                    chunk_action['content'] = chunk
+                    if chunk_idx > 0:
+                        # For subsequent chunks, append to file
+                        if action_type == 'create':
+                            action_type = 'edit'  # Change to edit for appending
+                            chunk_action['type'] = 'edit'
+                    
+                    # Execute chunk
+                    if action_type == 'edit':
+                        result = self._action_edit(target, chunk_action['content'])
+                    elif action_type == 'create':
+                        result = self._action_create(target, chunk_action['content'])
+                    else:
+                        result = f"Skipped chunk {chunk_idx + 1}"
+                    results.append(result)
+            else:
+                # Normal action execution
+                if action_type == 'edit':
+                    result = self._action_edit(target, content)
+                    results.append(result)
+                
+                elif action_type == 'create':
+                    result = self._action_create(target, content)
+                    results.append(result)
+                
+                elif action_type == 'delete':
+                    result = self._action_delete(target, content)
+                    results.append(result)
+                
+                elif action_type == 'run':
+                    result = self._action_run(target, content)
+                    results.append(result)
+                    
+                    # Check if command failed and capture error info
+                    if result.startswith('✗'):
+                        failed_commands.append({
+                            'command': target,
+                            'purpose': content,
+                            'error': result
+                        })
+                
+                elif action_type == 'message':
+                    result = f"Message: {content}"
+                    results.append(result)
+                    print(content)
+                
+                else:
+                    # If normalization didn't help, show helpful error
+                    results.append(f"Unknown action type: '{action_type_raw}' (normalized: '{action_type}')")
+                    results.append(f"Valid action types are: edit, create, delete, run, message")
+                    # Try to infer intent
+                    if 'file' in action_type_raw or 'write' in action_type_raw:
+                        results.append(f"Hint: Did you mean 'create'? Attempting to create file anyway...")
+                        result = self._action_create(target, content)
+                        results.append(result)
+            
+            progress.complete_subtask(i)
+        
+        # Auto-debug if commands failed and auto_debug is enabled
+        if failed_commands and auto_debug and self.mode in ['craft', 'code']:
+            print("\n" + "="*80, file=sys.stderr)
+            print("⚠️  ERRORS DETECTED - Entering iterative debug mode", file=sys.stderr)
+            print("="*80, file=sys.stderr)
+            
+            debug_result = self._iterative_debug(failed_commands)
+            results.append("\n--- Debug Session ---")
+            results.append(debug_result)
+        
+        return "\n".join(results)
+    
     def _iterative_debug(self, failed_commands: List[Dict[str, Any]], max_iterations: int = 5) -> str:
         """Iteratively debug and fix command failures."""
         debug_agent = Agent('debug', cwd=self.cwd, user_input="")
@@ -820,9 +940,38 @@ Then re-run the failed commands to verify the fix works."""
         if not actions:
             return "No actions provided in response"
         
-        # Execute with auto-debug enabled for craft and code modes
-        auto_debug = self.mode in ['craft', 'code']
-        result = self.execute_actions(actions, auto_debug=auto_debug)
+        # Generate todo list
+        design_content = ""
+        for key in self.project_context.keys():
+            if key.startswith('__design__'):
+                design_content += self.project_context[key] + "\n"
+        
+        todos = generate_todo_list(actions, design_content)
+        if todos:
+            print("\n" + "="*80, file=sys.stderr)
+            print("📋 TODO LIST", file=sys.stderr)
+            print("="*80, file=sys.stderr)
+            for i, todo in enumerate(todos, 1):
+                print(f"  {i}. {todo}", file=sys.stderr)
+            print("="*80 + "\n", file=sys.stderr)
+        
+        # Check if we need to break down tasks
+        large_actions = []
+        for action in actions:
+            content = action.get('content', '')
+            if len(content) > 5000:  # Large content
+                large_actions.append(action)
+        
+        # Execute with progress tracking
+        if len(actions) > 1 or large_actions:
+            # Use progress tracker for multiple actions
+            progress = ProgressTracker(total_tasks=len(actions), task_name="Executing actions")
+            result = self.execute_actions_with_progress(actions, progress, auto_debug=self.mode in ['craft', 'code'])
+            progress.finish()
+        else:
+            # Single action, no progress needed
+            auto_debug = self.mode in ['craft', 'code']
+            result = self.execute_actions(actions, auto_debug=auto_debug)
         
         # Update conversation history
         self.conversation_history.append({

@@ -34,6 +34,7 @@ cp "$SCRIPT_DIR/tools/fs.py" "$INSTALL_DIR/tools/"
 cp "$SCRIPT_DIR/tools/shell.py" "$INSTALL_DIR/tools/"
 cp "$SCRIPT_DIR/tools/diff.py" "$INSTALL_DIR/tools/"
 cp "$SCRIPT_DIR/tools/structures.py" "$INSTALL_DIR/tools/" 2>/dev/null || true
+cp "$SCRIPT_DIR/tools/progress.py" "$INSTALL_DIR/tools/" 2>/dev/null || true
 cp "$SCRIPT_DIR/tools/__init__.py" "$INSTALL_DIR/tools/" 2>/dev/null || touch "$INSTALL_DIR/tools/__init__.py"
 cp "$SCRIPT_DIR/prompts/"*.txt "$INSTALL_DIR/prompts/"
 cp "$SCRIPT_DIR/structures/"*.json "$INSTALL_DIR/structures/" 2>/dev/null || true
