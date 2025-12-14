@@ -283,7 +283,13 @@ class Agent:
             
             # Strategy 1: Try standard JSON parser (fast path)
             try:
-                return json.loads(json_str)
+                parsed = json.loads(json_str)
+                # Normalize field names if needed (path -> target)
+                if isinstance(parsed, dict) and 'actions' in parsed:
+                    for action in parsed.get('actions', []):
+                        if 'path' in action and 'target' not in action:
+                            action['target'] = action.pop('path')
+                return parsed
             except json.JSONDecodeError:
                 pass
             
@@ -443,7 +449,8 @@ class Agent:
                             }
                             action_type = action_type_map.get(parsed.get('action', ''), 'create')
                             target = (parsed.get('file_path') or parsed.get('target') or 
-                                     parsed.get('file') or parsed.get('file_name') or '').strip()
+                                     parsed.get('path') or parsed.get('file') or 
+                                     parsed.get('file_name') or '').strip()
                             content = parsed.get('content') or parsed.get('code') or parsed.get('data') or ''
                             
                             # Only add if target is not empty
@@ -486,16 +493,18 @@ class Agent:
                         'execute': 'run'
                     }
                     action_type = action_type_map.get(parsed.get('action', ''), 'create')
-                    target = parsed.get('file_path') or parsed.get('target') or parsed.get('file', '')
+                    target = (parsed.get('file_path') or parsed.get('target') or 
+                             parsed.get('path') or parsed.get('file') or '').strip()
                     content = parsed.get('content') or parsed.get('code') or ''
                     
-                    return {
-                        "actions": [{
-                            "type": action_type,
-                            "target": target,
-                            "content": content
-                        }]
-                    }
+                    if target:  # Only return if target is not empty
+                        return {
+                            "actions": [{
+                                "type": action_type,
+                                "target": target,
+                                "content": content
+                            }]
+                        }
                 # Check if it's already in the correct format
                 elif isinstance(parsed, dict) and 'actions' in parsed:
                     return parsed
