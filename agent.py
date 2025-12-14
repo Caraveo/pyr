@@ -298,7 +298,7 @@ class Agent:
                 # Find the opening brace before "actions"
                 start = response.rfind('{', 0, actions_start)
                 if start == -1:
-                    start = response.find('{')
+            start = response.find('{')
                 
                 # Find matching closing brace
                 if start != -1:
@@ -315,7 +315,7 @@ class Agent:
                     
                     if end == -1:
                         # Incomplete JSON - try to find last closing brace
-                        end = response.rfind('}') + 1
+            end = response.rfind('}') + 1
                 else:
                     end = response.rfind('}') + 1
             else:
@@ -344,7 +344,7 @@ class Agent:
                             if 'file_path' in action and 'target' not in action:
                                 action['target'] = action.pop('file_path')
                 return parsed
-            except json.JSONDecodeError as e:
+        except json.JSONDecodeError as e:
                 # If JSON is incomplete, try to fix it
                 if 'Expecting' in str(e) or 'Unterminated' in str(e):
                     # Try to complete the JSON by adding missing closing braces
@@ -1569,7 +1569,7 @@ def main():
                 result = agent.process(user_input)
         else:
             # For non-debug modes, process normally
-            result = agent.process(user_input)
+        result = agent.process(user_input)
         print(result)
     else:
         # Interactive REPL mode (especially for 'code' command)
