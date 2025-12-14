@@ -49,7 +49,6 @@ from tools.shell import (
     get_ollama_model,
     run_ollama
 )
-from tools.web import search_web, format_search_results
 from tools.diff import generate_unified_diff
 from tools.progress import ProgressTracker, break_down_tasks, generate_todo_list
 from tools.progress import ProgressTracker, break_down_tasks, generate_todo_list
@@ -407,7 +406,7 @@ class Agent:
                         # Add missing closing braces
                         response = response[:end] + '}' * missing
                         end = len(response)
-                        json_str = response[start:end]
+            json_str = response[start:end]
                     else:
                         json_str = response[start:end]
                 else:
@@ -522,7 +521,7 @@ class Agent:
                     print(f"Error parsing json5 response: {e}", file=sys.stderr)
                     print(f"Response preview (first 500 chars): {json_str[:500]}", file=sys.stderr)
                     print(f"Response preview (last 200 chars): {json_str[-200:]}", file=sys.stderr)
-                    return None
+            return None
     
         except Exception as e:
             print(f"Unexpected error parsing json5: {e}", file=sys.stderr)
@@ -809,27 +808,6 @@ class Agent:
                 if len(file_list) > 20:
                     context_summary += f"  ... and {len(file_list) - 20} more files\n"
             
-            # Perform web search if not offline and in debug mode
-            web_search_results = ""
-            if not self.offline and self.mode == 'debug':
-                # Extract error keywords for search
-                error_keywords = []
-                if stderr:
-                    # Get first line of error (usually the most important)
-                    first_line = stderr.split('\n')[0].strip()
-                    if first_line:
-                        error_keywords.append(first_line[:100])  # First 100 chars
-                if command:
-                    error_keywords.append(f"{command} error")
-                
-                # Search for solutions
-                if error_keywords:
-                    search_query = f"{command} {error_keywords[0]} solution fix"
-                    print(f"🌐 Searching web for: {search_query}", file=sys.stderr)
-                    search_results = search_web(search_query, max_results=3)
-                    if search_results:
-                        web_search_results = format_search_results(search_results)
-                        print(f"✓ Found {len(search_results)} search results", file=sys.stderr)
             
             # Build debug prompt
             debug_prompt = f"""The following command failed:
@@ -1458,8 +1436,8 @@ def main():
                 user_input = ' '.join(args.input)
     else:
         # For other modes, use input as-is
-        if args.input:
-            user_input = ' '.join(args.input)
+    if args.input:
+        user_input = ' '.join(args.input)
     
     # Create agent (pass user_input for structure detection in design mode)
     agent = Agent(args.mode, cwd=args.cwd, design_files=design_files, user_input=user_input or "", offline=args.offline)
@@ -1483,8 +1461,8 @@ def main():
                 result = agent.process(user_input)
         else:
             # For non-debug modes, process normally
-            result = agent.process(user_input)
-            print(result)
+        result = agent.process(user_input)
+        print(result)
     else:
         # Interactive REPL mode (especially for 'code' command)
         if args.mode == 'code':
