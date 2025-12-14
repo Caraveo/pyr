@@ -388,6 +388,7 @@ class Agent:
             
             if start == -1 or end == 0:
                 print(f"Error: No JSON found in response", file=sys.stderr)
+                print(f"Response preview (first 500 chars): {response[:500]}", file=sys.stderr)
                 return None
             
             json_str = response[start:end]
@@ -695,6 +696,7 @@ class Agent:
     
         except Exception as e:
             print(f"Unexpected error parsing JSON: {e}", file=sys.stderr)
+            print(f"Response preview (first 500 chars): {response[:500] if response else 'Empty response'}", file=sys.stderr)
             return None
     
     def _fix_common_json_issues(self, json_str: str) -> str:
