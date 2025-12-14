@@ -968,6 +968,97 @@ class Agent:
         
         return "\n".join(results)
     
+    def _debug_command(self, command: str, max_iterations: int = 5) -> str:
+        """Debug a specific command by running it, analyzing failures, and fixing iteratively."""
+        print(f"\n🔍 Debugging command: {command}", file=sys.stderr)
+        print("="*80, file=sys.stderr)
+        
+        # First, run the command to see if it fails
+        print(f"\n--- Running: {command} ---", file=sys.stderr)
+        returncode, stdout, stderr = run_command(command, cwd=self.cwd)
+        
+        if returncode == 0:
+            print(f"✓ Command succeeded on first try!", file=sys.stderr)
+            return f"✓ Command '{command}' succeeded.\n{stdout}"
+        
+        # Command failed - enter debug loop
+        print(f"✗ Command failed (exit {returncode})", file=sys.stderr)
+        print(f"Error output:\n{stderr}\n{stdout}", file=sys.stderr)
+        
+        iteration = 0
+        last_error = stderr + "\n" + stdout
+        
+        while iteration < max_iterations:
+            iteration += 1
+            print(f"\n🔧 Debug iteration {iteration}/{max_iterations}", file=sys.stderr)
+            print("="*80, file=sys.stderr)
+            
+            # Build debug prompt
+            debug_prompt = f"""The following command failed:
+
+Command: {command}
+Exit code: {returncode}
+Error output:
+{last_error}
+
+Analyze the error, identify the root cause, and fix it.
+After applying fixes, you MUST include a "run" action to re-execute the original command: {command}
+
+This will verify that your fix works."""
+            
+            # Add structure information if available
+            if self.detected_structure:
+                assumptions = self.detected_structure.get('assumptions', {})
+                structure_info = f"\n\nIMPORTANT - PROJECT STRUCTURE REQUIREMENTS:\n"
+                structure_info += f"Language: {assumptions.get('language', 'Unknown')}\n"
+                structure_info += f"Package Manager: {assumptions.get('package_manager', 'Unknown')}\n"
+                
+                structure_def = assumptions.get('structure', {})
+                if structure_def:
+                    structure_info += f"\nCRITICAL FILE LOCATIONS:\n"
+                    for file_path, file_info in structure_def.items():
+                        if file_info.get('required', False):
+                            if '/' not in file_path and '\\' not in file_path:
+                                structure_info += f"  - {file_path}: MUST be at project root\n"
+                            else:
+                                structure_info += f"  - {file_path}: {file_info.get('description', '')}\n"
+                
+                debug_prompt += structure_info
+            
+            # Process with debug agent
+            debug_agent = Agent('debug', cwd=self.cwd, user_input="")
+            debug_agent.project_context = self.project_context.copy()
+            debug_agent.conversation_history = self.conversation_history.copy()
+            
+            debug_result = debug_agent.process(debug_prompt)
+            
+            # Update our context
+            self.project_context.update(debug_agent.project_context)
+            self.conversation_history.extend(debug_agent.conversation_history[-1:])
+            self.load_context()
+            
+            # Check if debug agent ran the command again
+            if f"✓ Command succeeded" in debug_result or f"✓ Command '{command}'" in debug_result:
+                # Success! Command was re-run and succeeded
+                print(f"\n✓ Command fixed and verified after {iteration} iteration(s)!", file=sys.stderr)
+                return f"✓ Debug complete: Command '{command}' now works after {iteration} iteration(s).\n\n{debug_result}"
+            
+            # Re-run the original command to check if it works now
+            print(f"\n--- Re-running: {command} ---", file=sys.stderr)
+            returncode, stdout, stderr = run_command(command, cwd=self.cwd)
+            
+            if returncode == 0:
+                print(f"✓ Command fixed and verified!", file=sys.stderr)
+                return f"✓ Debug complete: Command '{command}' now works after {iteration} iteration(s).\n{stdout}"
+            
+            # Still failing - update error for next iteration
+            last_error = stderr + "\n" + stdout
+            print(f"⚠️  Command still failing after iteration {iteration}", file=sys.stderr)
+            print(f"New error:\n{last_error}", file=sys.stderr)
+        
+        # Max iterations reached
+        return f"⚠️  Debug incomplete: Command '{command}' still failing after {max_iterations} iteration(s).\nLast error: {last_error}\n\nDebug attempts:\n{debug_result}"
+    
     def _iterative_debug(self, failed_commands: List[Dict[str, Any]], max_iterations: int = 5) -> str:
         """Iteratively debug and fix command failures."""
         debug_agent = Agent('debug', cwd=self.cwd, user_input="")
@@ -1340,7 +1431,22 @@ def main():
     # Handle input
     if user_input:
         # Non-interactive mode
-        result = agent.process(user_input)
+        # Special handling for debug mode with command-like input
+        if args.mode == 'debug' and user_input.strip():
+            # Check if input looks like a command (not a question/description)
+            # Commands typically don't start with question words and may contain shell operators
+            command_indicators = [' ', '&&', '|', ';', '>', '<', '`']
+            is_likely_command = any(indicator in user_input for indicator in command_indicators) or \
+                               not any(user_input.strip().lower().startswith(q) for q in ['what', 'why', 'how', 'when', 'where', 'explain', 'analyze', 'help'])
+            
+            if is_likely_command and not user_input.strip().startswith('"') and not user_input.strip().startswith("'"):
+                # Treat as a command to debug
+                result = agent._debug_command(user_input.strip())
+            else:
+                # Treat as a regular debug prompt
+                result = agent.process(user_input)
+        else:
+            result = agent.process(user_input)
         print(result)
     else:
         # Interactive REPL mode (especially for 'code' command)
