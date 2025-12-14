@@ -342,7 +342,7 @@ class Agent:
                             if 'file_path' in action and 'target' not in action:
                                 action['target'] = action.pop('file_path')
                 return parsed
-        except json.JSONDecodeError as e:
+            except json.JSONDecodeError as e:
                 # If JSON is incomplete, try to fix it
                 if 'Expecting' in str(e) or 'Unterminated' in str(e):
                     # Try to complete the JSON by adding missing closing braces
