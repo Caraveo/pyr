@@ -300,8 +300,8 @@ class Agent:
                 if start == -1:
                     start = response.find('{')
             
-            # Find matching closing brace
-            if start != -1:
+                # Find matching closing brace
+                if start != -1:
                 depth = 0
                 end = -1
                 for i in range(start, len(response)):
