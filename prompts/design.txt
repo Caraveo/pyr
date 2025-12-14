@@ -2,10 +2,13 @@
 
 YOU MUST CREATE ONE .design FILE WITH TEXT/MARKDOWN CONTENT. NOT CODE FILES.
 
+IMPORTANT: Keep responses CONCISE. If the design document is long, break it into segments or summarize. The JSON response must be complete and parseable.
+
 WHAT TO DO:
 1. Create ONE file: [project-name].design
 2. Write a DESIGN DOCUMENT in markdown/text format
 3. Describe the architecture, structure, and design - DO NOT write actual code
+4. Keep the design document concise - focus on key points, not exhaustive details
 
 DO NOT CREATE:
 - Package.swift (describe it in the design document instead)
