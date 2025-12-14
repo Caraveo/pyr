@@ -51,20 +51,41 @@ create_command() {
     local cmd_name=$1
     local wrapper_path="$INSTALL_DIR/${cmd_name}_wrapper.sh"
     
-    cat > "$wrapper_path" << EOF
+    # Special handling for 'test' command to avoid shell built-in conflict
+    if [ "$cmd_name" = "test" ]; then
+        cat > "$wrapper_path" << 'EOF'
+#!/bin/bash
+# Wrapper for test command (avoiding shell built-in)
+exec python3 "$HOME/.local-ai-agent/agent.py" test "$@"
+EOF
+    else
+        cat > "$wrapper_path" << EOF
 #!/bin/bash
 # Wrapper for $cmd_name command
 exec python3 "$INSTALL_DIR/agent.py" $cmd_name "\$@"
 EOF
+    fi
     
     chmod +x "$wrapper_path"
     
     # Create symlink (requires sudo)
-    if sudo ln -sf "$wrapper_path" "$BIN_DIR/$cmd_name" 2>/dev/null; then
-        echo "  ✓ Installed: $cmd_name"
+    # For 'test', use a different approach to override shell built-in
+    if [ "$cmd_name" = "test" ]; then
+        # Create an alias or function in shell config, or use full path
+        if sudo ln -sf "$wrapper_path" "$BIN_DIR/ai-test" 2>/dev/null; then
+            echo "  ✓ Installed: ai-test (use 'ai-test' or full path to avoid shell built-in)"
+            echo "    Note: 'test' is a shell built-in. Use 'ai-test' or '$wrapper_path'"
+        else
+            echo "  ✗ Failed to install test command (may need sudo)"
+            echo "    Run manually: sudo ln -sf $wrapper_path $BIN_DIR/ai-test"
+        fi
     else
-        echo "  ✗ Failed to install $cmd_name (may need sudo)"
-        echo "    Run manually: sudo ln -sf $wrapper_path $BIN_DIR/$cmd_name"
+        if sudo ln -sf "$wrapper_path" "$BIN_DIR/$cmd_name" 2>/dev/null; then
+            echo "  ✓ Installed: $cmd_name"
+        else
+            echo "  ✗ Failed to install $cmd_name (may need sudo)"
+            echo "    Run manually: sudo ln -sf $wrapper_path $BIN_DIR/$cmd_name"
+        fi
     fi
 }
 

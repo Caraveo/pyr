@@ -334,16 +334,11 @@ class Agent:
                                 end = i + 1
                                 break
                     
-                    if end == -1:
-                        # Incomplete JSON - try to find last closing brace
-            end = response.rfind('}') + 1
-            else:
-                # No "actions" found, try to find any JSON object
-                start = response.find('{')
-                if start != -1:
+                if end == -1:
+                    # Incomplete JSON - try to find last closing brace
                     end = response.rfind('}') + 1
-                else:
-                    end = -1
+            else:
+                end = response.rfind('}') + 1
             
             if start == -1 or end == 0:
                 print(f"Error: No JSON found in response", file=sys.stderr)
