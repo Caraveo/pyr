@@ -319,7 +319,7 @@ class Agent:
                     # Incomplete JSON - try to find last closing brace
                     end = response.rfind('}') + 1
             else:
-            end = response.rfind('}') + 1
+                end = response.rfind('}') + 1
             
             if start == -1 or end == 0:
                 print(f"Error: No JSON found in response", file=sys.stderr)
@@ -1207,6 +1207,7 @@ Then re-run the failed commands to verify the fix works."""
                 if not new_failed:
                     all_fixed = True
                     print("✓ All issues resolved!", file=sys.stderr)
+                    print("Stopping debug loop - all commands now succeed.", file=sys.stderr)
                     break
             
             # Update our context with debug agent's changes
@@ -1219,7 +1220,8 @@ Then re-run the failed commands to verify the fix works."""
         if all_fixed:
             return f"✓ Debug complete: All issues resolved after {iteration} iteration(s)"
         else:
-            return f"⚠️  Debug incomplete: Some issues may remain after {iteration} iteration(s). Manual intervention may be needed."
+            print(f"\n⚠️  Reached maximum iterations ({max_iterations})", file=sys.stderr)
+            return f"⚠️  Debug incomplete: Some issues may remain after {max_iterations} iteration(s). Manual intervention may be needed."
     
     def _action_edit(self, target: str, content: str) -> str:
         """Edit an existing file."""
