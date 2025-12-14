@@ -1098,6 +1098,28 @@ class Agent:
                 if len(file_list) > 20:
                     context_summary += f"  ... and {len(file_list) - 20} more files\n"
             
+            # Perform web search if not offline and in debug mode
+            web_search_results = ""
+            if not self.offline and self.mode == 'debug':
+                # Extract error keywords for search
+                error_keywords = []
+                if stderr:
+                    # Get first line of error (usually the most important)
+                    first_line = stderr.split('\n')[0].strip()
+                    if first_line:
+                        error_keywords.append(first_line[:100])  # First 100 chars
+                if command:
+                    error_keywords.append(f"{command} error")
+                
+                # Search for solutions
+                if error_keywords:
+                    search_query = f"{command} {error_keywords[0]} solution fix"
+                    print(f"🌐 Searching web for: {search_query}", file=sys.stderr)
+                    search_results = search_web(search_query, max_results=3)
+                    if search_results:
+                        web_search_results = format_search_results(search_results)
+                        print(f"✓ Found {len(search_results)} search results", file=sys.stderr)
+            
             # Build debug prompt
             debug_prompt = f"""The following command failed:
 
@@ -1106,6 +1128,7 @@ Exit code: {returncode}
 Error output:
 {last_error}
 {context_summary}
+{web_search_results}
 
 YOUR TASK:
 1. FIRST: Analyze and summarize the error in a "message" action
@@ -1213,7 +1236,7 @@ Remember: Start with analysis, use project context, then fix and verify."""
     
     def _iterative_debug(self, failed_commands: List[Dict[str, Any]], max_iterations: int = 5) -> str:
         """Iteratively debug and fix command failures."""
-        debug_agent = Agent('debug', cwd=self.cwd, user_input="")
+        debug_agent = Agent('debug', cwd=self.cwd, user_input="", offline=self.offline)
         debug_agent.project_context = self.project_context.copy()
         debug_agent.conversation_history = self.conversation_history.copy()
         
@@ -1669,6 +1692,11 @@ def main():
         '--cwd',
         type=str,
         help='Working directory (default: current directory)'
+    )
+    parser.add_argument(
+        '--offline',
+        action='store_true',
+        help='Disable web search in debug mode (default: web search enabled)'
     )
     
     args = parser.parse_args()
