@@ -993,6 +993,17 @@ class Agent:
             print(f"\n🔧 Debug iteration {iteration}/{max_iterations}", file=sys.stderr)
             print("="*80, file=sys.stderr)
             
+            # Build debug prompt with project context
+            context_summary = ""
+            if self.project_context:
+                context_summary = "\n\nPROJECT CONTEXT (available files):\n"
+                file_list = [f for f in self.project_context.keys() if not f.startswith('__design__')]
+                context_summary += f"Found {len(file_list)} file(s) in project:\n"
+                for file_path in sorted(file_list)[:20]:  # Show first 20 files
+                    context_summary += f"  - {file_path}\n"
+                if len(file_list) > 20:
+                    context_summary += f"  ... and {len(file_list) - 20} more files\n"
+            
             # Build debug prompt
             debug_prompt = f"""The following command failed:
 
@@ -1000,11 +1011,29 @@ Command: {command}
 Exit code: {returncode}
 Error output:
 {last_error}
+{context_summary}
 
-Analyze the error, identify the root cause, and fix it.
-After applying fixes, you MUST include a "run" action to re-execute the original command: {command}
+YOUR TASK:
+1. FIRST: Analyze and summarize the error in a "message" action
+   - What went wrong?
+   - What is the specific issue?
+   - What was the command trying to do?
 
-This will verify that your fix works."""
+2. SECOND: Examine the project context above
+   - What files exist?
+   - What files are missing?
+   - What needs to be created or fixed?
+
+3. THIRD: Apply a minimal fix
+   - Create missing files
+   - Fix incorrect code or configuration
+   - Make targeted changes
+
+4. FOURTH: Verify the fix
+   - Include a "run" action to re-execute: {command}
+   - This verifies your fix works
+
+Remember: Start with analysis, use project context, then fix and verify."""
             
             # Add structure information if available
             if self.detected_structure:

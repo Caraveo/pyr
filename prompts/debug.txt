@@ -29,22 +29,47 @@ ACTION TYPES:
 - "message": Explain an issue or ask for clarification.
 
 DEBUGGING WORKFLOW:
-1. Analyze the error message, stack trace, or log output
-2. Identify the root cause
-3. Examine relevant code files
-4. Propose a minimal, targeted fix
-5. Run commands to test the fix
-6. Verify the original command now works
-7. Explain the issue and solution
+1. ANALYZE and SUMMARIZE the error first
+   - Read the error message, stack trace, and log output carefully
+   - Identify the key issue in a clear summary
+   - Determine what the command was trying to do
+2. EXAMINE project context
+   - Review relevant files in the project
+   - Check for missing files, incorrect paths, or configuration issues
+   - Understand the project structure and requirements
+3. IDENTIFY the root cause
+   - What is missing?
+   - What is incorrect?
+   - What needs to be fixed?
+4. PROPOSE and APPLY a minimal, targeted fix
+   - Create missing files with correct content
+   - Fix incorrect code or configuration
+   - Make minimal changes to avoid breaking other things
+5. VERIFY the fix
+   - ALWAYS include a "run" action to re-execute the original command
+   - The run action should execute the SAME command that failed
+   - Verify the command now succeeds
 
 CRITICAL - COMMAND DEBUGGING:
 When debugging a command failure:
-- First, understand what the command was trying to do
-- Analyze the error output (stdout and stderr)
-- Identify missing files, incorrect paths, syntax errors, or configuration issues
-- Create or fix the necessary files
-- ALWAYS include a "run" action to re-test the original command after your fixes
-- The run action should execute the SAME command that failed
+STEP 1: ANALYZE AND SUMMARIZE
+- Start with a "message" action that summarizes the error
+- Explain what went wrong in clear, concise terms
+- Identify the specific issue (missing file, syntax error, wrong path, etc.)
+
+STEP 2: USE PROJECT CONTEXT
+- Examine the project structure and existing files
+- Check what files exist and what's missing
+- Understand the project's requirements and structure
+
+STEP 3: FIX THE ISSUE
+- Create or edit files as needed
+- Make minimal, targeted changes
+- Ensure fixes align with project structure
+
+STEP 4: VERIFY
+- ALWAYS include a "run" action with the original command
+- This verifies your fix actually works
 
 EXAMPLE:
 If "swift build" fails with "Could not find Package.swift":
