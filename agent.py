@@ -1170,6 +1170,34 @@ Then re-run the failed commands to verify the fix works."""
         if not actions:
             return "No actions provided in response"
         
+        # For design mode, filter out any non-.design file actions BEFORE execution
+        if self.mode == 'design':
+            filtered_actions = []
+            rejected_actions = []
+            for action in actions:
+                target = (action.get('target') or action.get('path') or 
+                         action.get('file_path') or action.get('file') or '').strip()
+                action_type = action.get('type', '').lower()
+                
+                # Only allow .design files or message actions
+                if action_type == 'message':
+                    filtered_actions.append(action)
+                elif target.endswith('.design'):
+                    filtered_actions.append(action)
+                else:
+                    rejected_actions.append(f"{action_type}: {target}")
+            
+            if rejected_actions:
+                print(f"\n⚠️  FILTERED OUT {len(rejected_actions)} non-design actions:", file=sys.stderr)
+                for rejected in rejected_actions:
+                    print(f"   - {rejected}", file=sys.stderr)
+                print(f"   Design mode only works with .design files.\n", file=sys.stderr)
+            
+            if not filtered_actions:
+                return f"Error: All actions were filtered out. Design mode can only create/edit .design files.\nRejected actions: {', '.join(rejected_actions)}"
+            
+            actions = filtered_actions
+        
         # Generate todo list
         design_content = ""
         for key in self.project_context.keys():
