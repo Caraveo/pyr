@@ -1106,9 +1106,11 @@ Remember: Start with analysis, use project context, then fix and verify."""
         iteration = 0
         all_fixed = False
         
+        print(f"Will iterate until all commands succeed (max {max_iterations} attempts)", file=sys.stderr)
+        
         while iteration < max_iterations and not all_fixed:
             iteration += 1
-            print(f"\n🔧 Debug iteration {iteration}/{max_iterations}", file=sys.stderr)
+            print(f"\n🔧 Debug iteration {iteration} (will stop when all commands succeed)", file=sys.stderr)
             
             # Build debug prompt with all failed commands
             error_summary = []
