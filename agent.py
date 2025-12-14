@@ -851,6 +851,14 @@ class Agent:
                 progress.complete_subtask(i)
                 continue
             
+            # For design mode, enforce .design file restriction
+            if self.mode == 'design' and action_type in ['create', 'edit']:
+                if not target.endswith('.design'):
+                    results.append(f"✗ Error: Design mode can ONLY create/edit .design files. Attempted to {action_type}: {target}")
+                    results.append(f"   Please use a .design file as the target (e.g., '{self.project_name}.design')")
+                    progress.complete_subtask(i)
+                    continue
+            
             # Check if this is a large action that needs breaking down
             if action_type in ['create', 'edit'] and len(content) > 5000:
                 # Break down large content
