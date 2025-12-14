@@ -298,7 +298,7 @@ class Agent:
                 # Find the opening brace before "actions"
                 start = response.rfind('{', 0, actions_start)
                 if start == -1:
-                    start = response.find('{')
+            start = response.find('{')
             else:
                 start = response.find('{')
             
@@ -319,7 +319,7 @@ class Agent:
                     # Incomplete JSON - try to find last closing brace
                     end = response.rfind('}') + 1
             else:
-                end = response.rfind('}') + 1
+            end = response.rfind('}') + 1
             
             if start == -1 or end == 0:
                 print(f"Error: No JSON found in response", file=sys.stderr)
@@ -339,7 +339,7 @@ class Agent:
                             if 'file_path' in action and 'target' not in action:
                                 action['target'] = action.pop('file_path')
                 return parsed
-            except json.JSONDecodeError as e:
+        except json.JSONDecodeError as e:
                 # If JSON is incomplete, try to fix it
                 if 'Expecting' in str(e) or 'Unterminated' in str(e):
                     # Try to complete the JSON by adding missing closing braces
@@ -627,7 +627,7 @@ class Agent:
             print(f"Warning: Could not parse JSON response after all strategies", file=sys.stderr)
             print(f"Response preview (first 500 chars): {response[:500]}", file=sys.stderr)
             return None
-        
+    
         except Exception as e:
             print(f"Unexpected error parsing JSON: {e}", file=sys.stderr)
             return None
@@ -969,7 +969,10 @@ class Agent:
         return "\n".join(results)
     
     def _debug_command(self, command: str, max_iterations: int = 5) -> str:
-        """Debug a specific command by running it, analyzing failures, and fixing iteratively."""
+        """Debug a specific command by running it, analyzing failures, and fixing iteratively.
+        
+        Stops when command succeeds or max_iterations reached (whichever comes first).
+        """
         print(f"\n🔍 Debugging command: {command}", file=sys.stderr)
         print("="*80, file=sys.stderr)
         
@@ -984,13 +987,14 @@ class Agent:
         # Command failed - enter debug loop
         print(f"✗ Command failed (exit {returncode})", file=sys.stderr)
         print(f"Error output:\n{stderr}\n{stdout}", file=sys.stderr)
+        print(f"\nWill iterate until command succeeds (max {max_iterations} attempts)", file=sys.stderr)
         
         iteration = 0
         last_error = stderr + "\n" + stdout
         
         while iteration < max_iterations:
             iteration += 1
-            print(f"\n🔧 Debug iteration {iteration}/{max_iterations}", file=sys.stderr)
+            print(f"\n🔧 Debug iteration {iteration} (will stop when command succeeds)", file=sys.stderr)
             print("="*80, file=sys.stderr)
             
             # Build debug prompt with project context
@@ -1066,10 +1070,11 @@ Remember: Start with analysis, use project context, then fix and verify."""
             self.conversation_history.extend(debug_agent.conversation_history[-1:])
             self.load_context()
             
-            # Check if debug agent ran the command again
+            # Check if debug agent ran the command again and it succeeded
             if f"✓ Command succeeded" in debug_result or f"✓ Command '{command}'" in debug_result:
                 # Success! Command was re-run and succeeded
                 print(f"\n✓ Command fixed and verified after {iteration} iteration(s)!", file=sys.stderr)
+                print(f"Stopping debug loop - command now succeeds.", file=sys.stderr)
                 return f"✓ Debug complete: Command '{command}' now works after {iteration} iteration(s).\n\n{debug_result}"
             
             # Re-run the original command to check if it works now
@@ -1077,15 +1082,19 @@ Remember: Start with analysis, use project context, then fix and verify."""
             returncode, stdout, stderr = run_command(command, cwd=self.cwd)
             
             if returncode == 0:
+                # Success! Stop immediately
                 print(f"✓ Command fixed and verified!", file=sys.stderr)
+                print(f"Stopping debug loop - command now succeeds.", file=sys.stderr)
                 return f"✓ Debug complete: Command '{command}' now works after {iteration} iteration(s).\n{stdout}"
             
             # Still failing - update error for next iteration
             last_error = stderr + "\n" + stdout
             print(f"⚠️  Command still failing after iteration {iteration}", file=sys.stderr)
+            print(f"Continuing to next iteration...", file=sys.stderr)
             print(f"New error:\n{last_error}", file=sys.stderr)
         
-        # Max iterations reached
+        # Max iterations reached (safety limit)
+        print(f"\n⚠️  Reached maximum iterations ({max_iterations})", file=sys.stderr)
         return f"⚠️  Debug incomplete: Command '{command}' still failing after {max_iterations} iteration(s).\nLast error: {last_error}\n\nDebug attempts:\n{debug_result}"
     
     def _iterative_debug(self, failed_commands: List[Dict[str, Any]], max_iterations: int = 5) -> str:
@@ -1451,8 +1460,8 @@ def main():
                 user_input = ' '.join(args.input)
     else:
         # For other modes, use input as-is
-        if args.input:
-            user_input = ' '.join(args.input)
+    if args.input:
+        user_input = ' '.join(args.input)
     
     # Create agent (pass user_input for structure detection in design mode)
     agent = Agent(args.mode, cwd=args.cwd, design_files=design_files, user_input=user_input or "")
@@ -1475,7 +1484,7 @@ def main():
                 # Treat as a regular debug prompt
                 result = agent.process(user_input)
         else:
-            result = agent.process(user_input)
+        result = agent.process(user_input)
         print(result)
     else:
         # Interactive REPL mode (especially for 'code' command)
