@@ -160,15 +160,18 @@ class Agent:
         # Add response length warning
         response_length_warning = """
 ================================================================================
-⚠️ CRITICAL: RESPONSE LENGTH LIMITATIONS ⚠️
+⚠️ CRITICAL: JSON RESPONSE REQUIREMENTS ⚠️
 ================================================================================
-- Keep your JSON response COMPLETE and PARSEABLE
+- You MUST respond with VALID JSON ONLY - no other text before or after
+- Your response MUST be a complete, parseable JSON object
+- The JSON must start with { and end with } - no incomplete JSON
 - If creating large files, break them into MULTIPLE actions (create/edit in segments)
 - For design documents, be CONCISE - summarize key points, don't write exhaustive details
 - If a single action's content is too long, split it into multiple edit actions
-- The JSON must be complete - incomplete JSON will cause parsing errors
 - Maximum recommended content length per action: ~2000 characters
 - Use multiple actions if you need to create longer content
+- NEVER output explanatory text outside the JSON - ONLY output the JSON object
+- NEVER output markdown code blocks - output raw JSON only
 ================================================================================
 """
         prompt_parts = [self.base_prompt, response_length_warning]
@@ -345,7 +348,7 @@ class Agent:
             prompt_parts.append("ONLY create the .check file with test design descriptions!")
             prompt_parts.append("=" * 80)
         
-        prompt_parts.append("\n\nRespond with JSON actions only:")
+        prompt_parts.append("\n\n⚠️ FINAL REMINDER: Respond with VALID JSON ONLY - no other text, no markdown blocks, just the JSON object starting with { and ending with }")
         
         return "\n".join(prompt_parts)
     
