@@ -125,12 +125,12 @@ class Agent:
         print("Loading project context...", file=sys.stderr)
         self.project_context = load_project_context(self.cwd)
         
-        # Load project.prompts and project.context files
-        prompts_content = load_project_prompts(self.cwd)
+        # Load project-name.prompts and project-name.context files
+        prompts_content = load_project_prompts(self.cwd, self.project_name)
         if prompts_content:
             self.project_context['__project_prompts__'] = prompts_content
         
-        context_content = load_project_context_file(self.cwd)
+        context_content = load_project_context_file(self.cwd, self.project_name)
         if context_content:
             self.project_context['__project_context__'] = context_content
         
@@ -1561,8 +1561,8 @@ Then re-run the failed commands to verify the fix works."""
         # Generate action summary for project.prompts
         actions_summary = self._generate_action_summary(actions, result)
         
-        # Update project.prompts file
-        append_project_prompt(self.cwd, self.mode, user_input, actions_summary)
+        # Update project-name.prompts file
+        append_project_prompt(self.cwd, self.mode, user_input, actions_summary, self.project_name)
         
         # Reload context if files were modified
         files_modified = any(a.get('type') in ['edit', 'create', 'delete'] for a in actions)

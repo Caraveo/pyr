@@ -240,11 +240,22 @@ def find_test_files(root_dir: Path) -> List[Path]:
     return sorted(set(test_files))  # Remove duplicates and sort
 
 
-def load_project_prompts(root_dir: Path) -> Optional[str]:
-    """Load the project.prompts file if it exists."""
+def load_project_prompts(root_dir: Path, project_name: str = "") -> Optional[str]:
+    """Load the project-name.prompts file if it exists."""
     root_dir = Path(root_dir).resolve()
-    prompts_file = root_dir / "project.prompts"
     
+    # Try project-name.prompts first, fallback to project.prompts for backwards compatibility
+    if project_name:
+        prompts_file = root_dir / f"{project_name}.prompts"
+        if prompts_file.exists():
+            try:
+                with open(prompts_file, 'r', encoding='utf-8') as f:
+                    return f.read()
+            except (PermissionError, UnicodeDecodeError, OSError):
+                pass
+    
+    # Fallback to project.prompts for backwards compatibility
+    prompts_file = root_dir / "project.prompts"
     if prompts_file.exists():
         try:
             with open(prompts_file, 'r', encoding='utf-8') as f:
@@ -254,11 +265,22 @@ def load_project_prompts(root_dir: Path) -> Optional[str]:
     return None
 
 
-def load_project_context_file(root_dir: Path) -> Optional[str]:
-    """Load the project.context file if it exists."""
+def load_project_context_file(root_dir: Path, project_name: str = "") -> Optional[str]:
+    """Load the project-name.context file if it exists."""
     root_dir = Path(root_dir).resolve()
-    context_file = root_dir / "project.context"
     
+    # Try project-name.context first, fallback to project.context for backwards compatibility
+    if project_name:
+        context_file = root_dir / f"{project_name}.context"
+        if context_file.exists():
+            try:
+                with open(context_file, 'r', encoding='utf-8') as f:
+                    return f.read()
+            except (PermissionError, UnicodeDecodeError, OSError):
+                pass
+    
+    # Fallback to project.context for backwards compatibility
+    context_file = root_dir / "project.context"
     if context_file.exists():
         try:
             with open(context_file, 'r', encoding='utf-8') as f:
@@ -268,21 +290,24 @@ def load_project_context_file(root_dir: Path) -> Optional[str]:
     return None
 
 
-def append_project_prompt(root_dir: Path, mode: str, user_input: str, actions_summary: str) -> bool:
+def append_project_prompt(root_dir: Path, mode: str, user_input: str, actions_summary: str, project_name: str = "") -> bool:
     """
-    Append a prompt entry to project.prompts.
+    Append a prompt entry to project-name.prompts.
     
     Args:
         root_dir: Project root directory
         mode: Agent mode (code, design, craft, debug, test)
         user_input: The user's input/prompt
         actions_summary: Summary of what the agent did
+        project_name: Name of the project (defaults to directory name)
     
     Returns:
         True if successful, False otherwise
     """
     root_dir = Path(root_dir).resolve()
-    prompts_file = root_dir / "project.prompts"
+    if not project_name:
+        project_name = root_dir.name
+    prompts_file = root_dir / f"{project_name}.prompts"
     
     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     
@@ -303,9 +328,9 @@ ACTIONS TAKEN:
         with open(prompts_file, 'a', encoding='utf-8') as f:
             f.write(entry)
         return True
-    except (OSError, PermissionError) as e:
-        print(f"Warning: Could not update project.prompts: {e}", file=sys.stderr)
-        return False
+        except (OSError, PermissionError) as e:
+            print(f"Warning: Could not update {project_name}.prompts: {e}", file=sys.stderr)
+            return False
 
 
 def update_project_context(root_dir: Path, project_context: Dict[str, str], 
@@ -414,6 +439,6 @@ def update_project_context(root_dir: Path, project_context: Dict[str, str],
         with open(context_file, 'w', encoding='utf-8') as f:
             f.write(summary)
         return True
-    except (OSError, PermissionError) as e:
-        print(f"Warning: Could not update project.context: {e}", file=sys.stderr)
-        return False
+        except (OSError, PermissionError) as e:
+            print(f"Warning: Could not update {project_name}.context: {e}", file=sys.stderr)
+            return False
