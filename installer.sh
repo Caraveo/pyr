@@ -107,11 +107,31 @@ echo "Requirements:"
 echo "  - Ollama must be installed (https://ollama.ai)"
 echo "  - Model: qwen2.5-coder:14b (or set LOCAL_AI_MODEL env var)"
 echo ""
-echo "Optional (recommended for better JSON parsing):"
-echo "  - json5: pip3 install json5"
+echo "Installing Python dependencies..."
 echo ""
-echo "Optional (for web search in debug mode):"
-echo "  - duckduckgo-search: pip3 install duckduckgo-search"
+
+# Check if pip3 is available
+if ! command -v pip3 &> /dev/null; then
+    echo "  ⚠️  Warning: pip3 not found. Please install Python 3 with pip to use optional features."
+    echo "     Install manually: pip3 install json5 duckduckgo-search"
+else
+    # Install json5 for better JSON parsing
+    if python3 -c "import json5" 2>/dev/null; then
+        echo "  ✓ json5 already installed"
+    else
+        echo "  Installing json5 (for better JSON parsing)..."
+        pip3 install --quiet json5 2>/dev/null && echo "    ✓ Installed json5" || echo "    ✗ Failed to install json5 (run manually: pip3 install json5)"
+    fi
+    
+    # Install duckduckgo-search for web search in debug mode
+    if python3 -c "import duckduckgo_search" 2>/dev/null; then
+        echo "  ✓ duckduckgo-search already installed"
+    else
+        echo "  Installing duckduckgo-search (for web search in debug mode)..."
+        pip3 install --quiet duckduckgo-search 2>/dev/null && echo "    ✓ Installed duckduckgo-search" || echo "    ✗ Failed to install duckduckgo-search (run manually: pip3 install duckduckgo-search)"
+    fi
+fi
+
 echo ""
 echo "To uninstall, run:"
 echo "  sudo rm $BIN_DIR/{code,design,craft,debug,check}"
