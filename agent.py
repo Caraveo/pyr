@@ -1467,13 +1467,13 @@ Then re-run the failed commands to verify the fix works."""
                     rejected_actions.append(f"{action_type}: {target}")
             
             if rejected_actions:
-                print(f"\n⚠️  FILTERED OUT {len(rejected_actions)} non-design actions:", file=sys.stderr)
+                print(f"\n⚠️  FILTERED OUT {len(rejected_actions)} non-check actions:", file=sys.stderr)
                 for rejected in rejected_actions:
                     print(f"   - {rejected}", file=sys.stderr)
-                print(f"   Design mode only works with .design files.\n", file=sys.stderr)
+                print(f"   Test mode only works with .check files.\n", file=sys.stderr)
             
             if not filtered_actions:
-                return f"Error: All actions were filtered out. Design mode can only create/edit .design files.\nRejected actions: {', '.join(rejected_actions)}"
+                return f"Error: All actions were filtered out. Test mode can only create/edit .check files.\nRejected actions: {', '.join(rejected_actions)}"
             
             actions = filtered_actions
         
