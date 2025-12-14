@@ -298,8 +298,6 @@ class Agent:
                 # Find the opening brace before "actions"
                 start = response.rfind('{', 0, actions_start)
                 if start == -1:
-            start = response.find('{')
-                else:
                     start = response.find('{')
             
             # Find matching closing brace
