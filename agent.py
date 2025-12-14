@@ -267,6 +267,26 @@ class Agent:
             prompt_parts.append("ONLY create the .design file with text descriptions!")
             prompt_parts.append("=" * 80)
         
+        # For test mode, add explicit reminder with example
+        if self.mode == 'test':
+            prompt_parts.append("\n" + "=" * 80)
+            prompt_parts.append("⚠️  CRITICAL REMINDER: YOU ARE IN TEST MODE ⚠️")
+            prompt_parts.append("=" * 80)
+            prompt_parts.append(f"Create or edit ONLY: {self.project_name}.test")
+            prompt_parts.append("")
+            prompt_parts.append("Write a TEST DESIGN DOCUMENT (markdown text), NOT test code files.")
+            prompt_parts.append("Describe the test strategy, test cases, and testing approach.")
+            prompt_parts.append("")
+            prompt_parts.append("EXAMPLE: If creating Dice.test, write markdown like:")
+            prompt_parts.append("  # Dice Test Design")
+            prompt_parts.append("  ## Unit Tests")
+            prompt_parts.append("  - Test: Create todo item with title")
+            prompt_parts.append("  - Test: Toggle completion status")
+            prompt_parts.append("")
+            prompt_parts.append("DO NOT create test_*.py, *Test.swift, or any test code files!")
+            prompt_parts.append("ONLY create the .test file with test design descriptions!")
+            prompt_parts.append("=" * 80)
+        
         prompt_parts.append("\n\nRespond with JSON actions only:")
         
         return "\n".join(prompt_parts)
@@ -298,7 +318,7 @@ class Agent:
                 # Find the opening brace before "actions"
                 start = response.rfind('{', 0, actions_start)
                 if start == -1:
-                    start = response.find('{')
+            start = response.find('{')
                 
                 # Find matching closing brace
                 if start != -1:
@@ -315,7 +335,7 @@ class Agent:
                     
                     if end == -1:
                         # Incomplete JSON - try to find last closing brace
-                        end = response.rfind('}') + 1
+            end = response.rfind('}') + 1
             else:
                 # No "actions" found, try to find any JSON object
                 start = response.find('{')
@@ -342,7 +362,7 @@ class Agent:
                             if 'file_path' in action and 'target' not in action:
                                 action['target'] = action.pop('file_path')
                 return parsed
-            except json.JSONDecodeError as e:
+        except json.JSONDecodeError as e:
                 # If JSON is incomplete, try to fix it
                 if 'Expecting' in str(e) or 'Unterminated' in str(e):
                     # Try to complete the JSON by adding missing closing braces
@@ -1401,8 +1421,36 @@ Then re-run the failed commands to verify the fix works."""
         if not actions:
             return "No actions provided in response"
         
-        # For design mode, filter out any non-.design file actions BEFORE execution
-        if self.mode == 'design':
+            # For design mode, filter out any non-.design file actions BEFORE execution
+            if self.mode == 'design':
+                filtered_actions = []
+                rejected_actions = []
+                for action in actions:
+                    target = (action.get('target') or action.get('path') or 
+                             action.get('file_path') or action.get('file') or '').strip()
+                    action_type = action.get('type', '').lower()
+                    
+                    # Only allow .design files or message actions
+                    if action_type == 'message':
+                        filtered_actions.append(action)
+                    elif target.endswith('.design'):
+                        filtered_actions.append(action)
+                    else:
+                        rejected_actions.append(f"{action_type}: {target}")
+                
+                if rejected_actions:
+                    print(f"\n⚠️  FILTERED OUT {len(rejected_actions)} non-design actions:", file=sys.stderr)
+                    for rejected in rejected_actions:
+                        print(f"   - {rejected}", file=sys.stderr)
+                    print(f"   Design mode only works with .design files.\n", file=sys.stderr)
+                
+                if not filtered_actions:
+                    return f"Error: All actions were filtered out. Design mode can only create/edit .design files.\nRejected actions: {', '.join(rejected_actions)}"
+                
+                actions = filtered_actions
+            
+            # For test mode, filter out any non-.test file actions BEFORE execution
+            if self.mode == 'test':
             filtered_actions = []
             rejected_actions = []
             for action in actions:
@@ -1542,8 +1590,8 @@ def main():
                 user_input = ' '.join(args.input)
     else:
         # For other modes, use input as-is
-        if args.input:
-            user_input = ' '.join(args.input)
+    if args.input:
+        user_input = ' '.join(args.input)
     
     # Create agent (pass user_input for structure detection in design mode)
     agent = Agent(args.mode, cwd=args.cwd, design_files=design_files, user_input=user_input or "")
@@ -1567,7 +1615,7 @@ def main():
                 result = agent.process(user_input)
         else:
             # For non-debug modes, process normally
-            result = agent.process(user_input)
+        result = agent.process(user_input)
         print(result)
     else:
         # Interactive REPL mode (especially for 'code' command)
