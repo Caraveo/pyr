@@ -1488,6 +1488,8 @@ def main():
                 # Treat as a regular debug prompt
                 result = agent.process(user_input)
         else:
+            result = agent.process(user_input)
+        else:
         result = agent.process(user_input)
         print(result)
     else:
