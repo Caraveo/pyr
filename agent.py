@@ -82,6 +82,10 @@ class Agent:
                 print(f"Detected structure: {self.detected_structure.get('name', 'Unknown')}", file=sys.stderr)
                 print(f"Project name: {self.project_name}", file=sys.stderr)
         
+        # If project name not set, use directory name
+        if not self.project_name:
+            self.project_name = self.cwd.name
+        
         # Load project context
         self.load_context()
         
