@@ -349,7 +349,9 @@ def update_project_context(root_dir: Path, project_context: Dict[str, str],
         True if successful, False otherwise
     """
     root_dir = Path(root_dir).resolve()
-    context_file = root_dir / "project.context"
+    if not project_name:
+        project_name = root_dir.name
+    context_file = root_dir / f"{project_name}.context"
     
     # Generate project summary
     summary_parts = []
