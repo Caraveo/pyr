@@ -5,9 +5,11 @@ Handles file operations, context loading, and backups.
 """
 
 import os
+import sys
 import shutil
 from pathlib import Path
-from typing import List, Set, Optional
+from typing import List, Set, Optional, Dict, Any
+from datetime import datetime
 
 
 # Directories to skip when loading context
@@ -236,3 +238,182 @@ def find_test_files(root_dir: Path) -> List[Path]:
                         test_files.append(test_file)
     
     return sorted(set(test_files))  # Remove duplicates and sort
+
+
+def load_project_prompts(root_dir: Path) -> Optional[str]:
+    """Load the project.prompts file if it exists."""
+    root_dir = Path(root_dir).resolve()
+    prompts_file = root_dir / "project.prompts"
+    
+    if prompts_file.exists():
+        try:
+            with open(prompts_file, 'r', encoding='utf-8') as f:
+                return f.read()
+        except (PermissionError, UnicodeDecodeError, OSError):
+            return None
+    return None
+
+
+def load_project_context_file(root_dir: Path) -> Optional[str]:
+    """Load the project.context file if it exists."""
+    root_dir = Path(root_dir).resolve()
+    context_file = root_dir / "project.context"
+    
+    if context_file.exists():
+        try:
+            with open(context_file, 'r', encoding='utf-8') as f:
+                return f.read()
+        except (PermissionError, UnicodeDecodeError, OSError):
+            return None
+    return None
+
+
+def append_project_prompt(root_dir: Path, mode: str, user_input: str, actions_summary: str) -> bool:
+    """
+    Append a prompt entry to project.prompts.
+    
+    Args:
+        root_dir: Project root directory
+        mode: Agent mode (code, design, craft, debug, test)
+        user_input: The user's input/prompt
+        actions_summary: Summary of what the agent did
+    
+    Returns:
+        True if successful, False otherwise
+    """
+    root_dir = Path(root_dir).resolve()
+    prompts_file = root_dir / "project.prompts"
+    
+    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    
+    # Format the entry
+    entry = f"""
+{'='*80}
+[{timestamp}] {mode.upper()}
+{'='*80}
+PROMPT:
+{user_input}
+
+ACTIONS TAKEN:
+{actions_summary}
+"""
+    
+    try:
+        # Append to file (create if doesn't exist)
+        with open(prompts_file, 'a', encoding='utf-8') as f:
+            f.write(entry)
+        return True
+    except (OSError, PermissionError) as e:
+        print(f"Warning: Could not update project.prompts: {e}", file=sys.stderr)
+        return False
+
+
+def update_project_context(root_dir: Path, project_context: Dict[str, str], 
+                           detected_structure: Optional[Dict[str, Any]] = None,
+                           project_name: str = "") -> bool:
+    """
+    Update or create project.context with a summary of the project.
+    
+    Args:
+        root_dir: Project root directory
+        project_context: Dictionary of project files and their contents
+        detected_structure: Detected project structure (optional)
+        project_name: Name of the project (optional)
+    
+    Returns:
+        True if successful, False otherwise
+    """
+    root_dir = Path(root_dir).resolve()
+    context_file = root_dir / "project.context"
+    
+    # Generate project summary
+    summary_parts = []
+    
+    if project_name:
+        summary_parts.append(f"# {project_name} - Project Context")
+    else:
+        summary_parts.append(f"# {root_dir.name} - Project Context")
+    
+    summary_parts.append("")
+    summary_parts.append(f"Last updated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+    summary_parts.append("")
+    
+    # Add structure information
+    if detected_structure:
+        summary_parts.append("## Project Structure")
+        summary_parts.append(f"Type: {detected_structure.get('name', 'Unknown')}")
+        if detected_structure.get('description'):
+            summary_parts.append(f"Description: {detected_structure.get('description')}")
+        summary_parts.append("")
+    
+    # Analyze project files
+    file_types = {}
+    key_files = []
+    
+    for file_path in project_context.keys():
+        if file_path.startswith('__design__') or file_path.startswith('__'):
+            continue
+        
+        # Count file types
+        ext = Path(file_path).suffix or 'no extension'
+        file_types[ext] = file_types.get(ext, 0) + 1
+        
+        # Identify key files
+        file_name = Path(file_path).name.lower()
+        if any(keyword in file_name for keyword in [
+            'package.swift', 'package.json', 'requirements.txt', 'cargo.toml',
+            'go.mod', 'pom.xml', 'build.gradle', 'makefile', 'cmakelists.txt',
+            'readme', 'main', 'app', 'index'
+        ]):
+            key_files.append(file_path)
+    
+    # Add file statistics
+    summary_parts.append("## Project Files")
+    summary_parts.append(f"Total files: {len([k for k in project_context.keys() if not k.startswith('__')])}")
+    summary_parts.append("")
+    
+    if file_types:
+        summary_parts.append("File types:")
+        for ext, count in sorted(file_types.items(), key=lambda x: x[1], reverse=True)[:10]:
+            summary_parts.append(f"  - {ext or '(no extension)'}: {count} file(s)")
+        summary_parts.append("")
+    
+    if key_files:
+        summary_parts.append("Key files:")
+        for key_file in sorted(key_files)[:20]:  # Limit to 20
+            summary_parts.append(f"  - {key_file}")
+        summary_parts.append("")
+    
+    # Add design document summary if available
+    design_keys = [k for k in project_context.keys() if k.startswith('__design__')]
+    if design_keys:
+        summary_parts.append("## Design Documents")
+        for key in design_keys:
+            design_name = key.replace('__design__', '') or 'design document'
+            summary_parts.append(f"  - {design_name}")
+        summary_parts.append("")
+    
+    # Try to extract a brief description from README or main files
+    for file_path in sorted(project_context.keys()):
+        if 'readme' in file_path.lower() or 'main' in file_path.lower():
+            content = project_context[file_path]
+            # Extract first few lines as description
+            lines = content.split('\n')[:10]
+            non_empty = [l.strip() for l in lines if l.strip() and not l.strip().startswith('#')]
+            if non_empty:
+                summary_parts.append("## Project Description")
+                summary_parts.append(non_empty[0])
+                if len(non_empty) > 1:
+                    summary_parts.append(non_empty[1])
+                summary_parts.append("")
+                break
+    
+    summary = "\n".join(summary_parts)
+    
+    try:
+        with open(context_file, 'w', encoding='utf-8') as f:
+            f.write(summary)
+        return True
+    except (OSError, PermissionError) as e:
+        print(f"Warning: Could not update project.context: {e}", file=sys.stderr)
+        return False

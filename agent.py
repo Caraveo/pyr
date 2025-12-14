@@ -32,7 +32,11 @@ from tools.fs import (
     delete_file,
     find_design_file,
     find_all_design_files,
-    find_test_files
+    find_test_files,
+    load_project_prompts,
+    load_project_context_file,
+    append_project_prompt,
+    update_project_context
 )
 from tools.structures import (
     detect_structure,
@@ -121,6 +125,15 @@ class Agent:
         print("Loading project context...", file=sys.stderr)
         self.project_context = load_project_context(self.cwd)
         
+        # Load project.prompts and project.context files
+        prompts_content = load_project_prompts(self.cwd)
+        if prompts_content:
+            self.project_context['__project_prompts__'] = prompts_content
+        
+        context_content = load_project_context_file(self.cwd)
+        if context_content:
+            self.project_context['__project_context__'] = context_content
+        
         # For design mode, also load design document
         if self.mode == 'design':
             design_file = find_design_file(self.cwd)
@@ -144,23 +157,47 @@ class Agent:
         """Build the full prompt including context and history."""
         prompt_parts = [self.base_prompt]
         
-        # Add project context
+        # Add project.context file first (project summary)
+        if '__project_context__' in self.project_context:
+            prompt_parts.append("\n\nPROJECT SUMMARY (project.context):")
+            prompt_parts.append("=" * 80)
+            prompt_parts.append(self.project_context['__project_context__'])
+            prompt_parts.append("=" * 80)
+        
+        # Add project.prompts file (prompt history)
+        if '__project_prompts__' in self.project_context:
+            prompts_content = self.project_context['__project_prompts__']
+            # Only show last 5 entries to avoid overwhelming the prompt
+            separator = '=' * 80
+            entries = prompts_content.split(separator)
+            if len(entries) > 6:  # More than 5 entries (plus header)
+                recent_entries = entries[-6:]  # Last 5 entries
+                prompts_content = separator.join(recent_entries)
+            
+            prompt_parts.append("\n\nPROMPT HISTORY (project.prompts):")
+            prompt_parts.append("=" * 80)
+            prompt_parts.append("Recent agent interactions and actions:")
+            prompt_parts.append(prompts_content)
+            prompt_parts.append("=" * 80)
+        
+        # Add project context (file contents)
         if self.project_context:
-            prompt_parts.append("\n\nPROJECT CONTEXT:")
+            prompt_parts.append("\n\nPROJECT FILES:")
             prompt_parts.append("=" * 80)
             
-            # Format context as file listings
-            for file_path, content in list(self.project_context.items())[:50]:  # Limit context size
-                # Skip design files - they're shown separately
-                if not file_path.startswith('__design__'):
-                    prompt_parts.append(f"\n--- {file_path} ---")
-                    # Truncate very long files
-                    if len(content) > 5000:
-                        content = content[:5000] + "\n... (truncated)"
-                    prompt_parts.append(content)
+            # Format context as file listings (skip special keys)
+            regular_files = [(k, v) for k, v in self.project_context.items() 
+                           if not k.startswith('__')]
             
-            if len(self.project_context) > 50:
-                prompt_parts.append(f"\n... and {len(self.project_context) - 50} more files")
+            for file_path, content in regular_files[:50]:  # Limit context size
+                prompt_parts.append(f"\n--- {file_path} ---")
+                # Truncate very long files
+                if len(content) > 5000:
+                    content = content[:5000] + "\n... (truncated)"
+                prompt_parts.append(content)
+            
+            if len(regular_files) > 50:
+                prompt_parts.append(f"\n... and {len(regular_files) - 50} more files")
         
         # Add structure information for design mode
         if self.mode == 'design' and self.detected_structure:
@@ -1516,11 +1553,54 @@ Then re-run the failed commands to verify the fix works."""
             'assistant': result
         })
         
+        # Generate action summary for project.prompts
+        actions_summary = self._generate_action_summary(actions, result)
+        
+        # Update project.prompts file
+        append_project_prompt(self.cwd, self.mode, user_input, actions_summary)
+        
         # Reload context if files were modified
-        if any(a.get('type') in ['edit', 'create', 'delete'] for a in actions):
+        files_modified = any(a.get('type') in ['edit', 'create', 'delete'] for a in actions)
+        if files_modified:
             self.load_context()
+            # Update project.context file with latest project state
+            update_project_context(
+                self.cwd,
+                self.project_context,
+                self.detected_structure,
+                self.project_name
+            )
         
         return result
+    
+    def _generate_action_summary(self, actions: List[Dict[str, Any]], result: str) -> str:
+        """Generate a summary of actions taken for project.prompts."""
+        summary_parts = []
+        
+        for action in actions:
+            action_type = action.get('type', '').lower()
+            target = action.get('target', '').strip()
+            content = action.get('content', '')
+            
+            if action_type == 'create':
+                summary_parts.append(f"  ✓ Created: {target}")
+            elif action_type == 'edit':
+                summary_parts.append(f"  ✏️  Edited: {target}")
+            elif action_type == 'delete':
+                summary_parts.append(f"  🗑️  Deleted: {target}")
+            elif action_type == 'run':
+                summary_parts.append(f"  ▶️  Ran: {target}")
+                if content:
+                    summary_parts.append(f"     Purpose: {content}")
+            elif action_type == 'message':
+                summary_parts.append(f"  💬 Message: {content[:100]}...")
+        
+        if not summary_parts:
+            # Fallback: extract summary from result
+            result_lines = result.split('\n')[:10]  # First 10 lines
+            summary_parts.append("  " + "\n  ".join(result_lines))
+        
+        return "\n".join(summary_parts)
 
 
 def main():
