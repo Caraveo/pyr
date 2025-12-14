@@ -1189,6 +1189,31 @@ Then re-run the failed commands to verify the fix works."""
             # Process with debug agent
             debug_result = debug_agent.process(debug_prompt)
             
+            # Check if any changes were made
+            self.load_context()  # Reload to get latest file state
+            files_after = set(self.project_context.keys())
+            files_changed = files_after - files_before
+            files_removed = files_before - files_after
+            
+            # Check if any file modifications were made
+            has_changes = len(files_changed) > 0 or len(files_removed) > 0
+            has_actions = any(keyword in debug_result for keyword in ["✓ Created", "✓ Edited", "✓ Deleted", "--- Created", "--- Edited", "--- Deleted"])
+            
+            if not has_changes and not has_actions:
+                print(f"⚠️  WARNING: No changes detected in iteration {iteration}!", file=sys.stderr)
+                print(f"   Debug agent did not create, edit, or delete any files.", file=sys.stderr)
+                print(f"   This may indicate the agent needs more context or a different approach.", file=sys.stderr)
+                # Still continue to next iteration, but warn the user
+            
+            if has_changes:
+                print(f"✓ Changes detected: {len(files_changed)} file(s) added, {len(files_removed)} file(s) removed", file=sys.stderr)
+                if files_changed:
+                    for f in list(files_changed)[:5]:  # Show first 5
+                        print(f"   + {f}", file=sys.stderr)
+                if files_removed:
+                    for f in list(files_removed)[:5]:  # Show first 5
+                        print(f"   - {f}", file=sys.stderr)
+            
             # Check if debug agent ran any commands
             # Extract new failed commands from the result
             if "✗ Command failed" in debug_result:
