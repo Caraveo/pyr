@@ -390,6 +390,9 @@ class Agent:
                         # Add missing closing braces
                         response = response[:end] + '}' * missing
                         end = len(response)
+                        json_str = response[start:end]
+                    else:
+                        json_str = response[start:end]
                 else:
                     # No closing brace at all - try to complete from what we have
                     open_count = response[start:].count('{')
@@ -399,12 +402,13 @@ class Agent:
                         # Add missing closing braces
                         response = response + '}' * missing
                         end = len(response)
+                        json_str = response[start:end]
                     else:
                         print(f"Error: Incomplete JSON (no closing brace found)", file=sys.stderr)
                         print(f"Response preview (first 500 chars): {response[:500]}", file=sys.stderr)
                         return None
-            
-            json_str = response[start:end]
+            else:
+                json_str = response[start:end]
             
             # Parse using json5 (handles trailing commas, comments, unescaped newlines, etc.)
             try:
