@@ -377,19 +377,36 @@ class Agent:
                                 end = i + 1
                                 break
                     
-                if end == -1:
+                if end == -1 or end == 0:
                     # Incomplete JSON - try to find last closing brace
-                    end = response.rfind('}') + 1
+                    last_brace = response.rfind('}')
+                    if last_brace != -1:
+                        end = last_brace + 1
+                    else:
+                        # No closing brace found - JSON might be incomplete
+                        # Try to extract what we have and complete it later
+                        end = len(response)
             else:
                 # No "actions" found, try to find any JSON object
                 start = response.find('{')
                 if start != -1:
-                    end = response.rfind('}') + 1
+                    last_brace = response.rfind('}')
+                    if last_brace != -1:
+                        end = last_brace + 1
+                    else:
+                        # No closing brace - use full response
+                        end = len(response)
             
-            if start == -1 or end == 0:
-                print(f"Error: No JSON found in response", file=sys.stderr)
+            if start == -1:
+                print(f"Error: No JSON found in response (no opening brace)", file=sys.stderr)
                 print(f"Response preview (first 500 chars): {response[:500]}", file=sys.stderr)
                 return None
+            
+            if end <= start:
+                print(f"Error: Invalid JSON boundaries (start={start}, end={end})", file=sys.stderr)
+                print(f"Response preview (first 500 chars): {response[:500]}", file=sys.stderr)
+                # Try to use full response from start
+                end = len(response)
             
             json_str = response[start:end]
             
