@@ -73,8 +73,8 @@ class Agent:
         else:
             self.base_prompt = f"You are an AI assistant in {mode} mode."
         
-        # Detect structure (especially for design mode)
-        if mode == 'design' and user_input:
+        # Detect structure (especially for design and test modes)
+        if mode in ['design', 'test'] and user_input:
             self.detected_structure = detect_structure(self.cwd, user_input)
             self.project_name = extract_project_name(user_input, self.cwd)
             if self.detected_structure:
@@ -1421,8 +1421,8 @@ Then re-run the failed commands to verify the fix works."""
         if not actions:
             return "No actions provided in response"
         
-            # For design mode, filter out any non-.design file actions BEFORE execution
-            if self.mode == 'design':
+        # For design mode, filter out any non-.design file actions BEFORE execution
+        if self.mode == 'design':
                 filtered_actions = []
                 rejected_actions = []
                 for action in actions:
@@ -1449,8 +1449,8 @@ Then re-run the failed commands to verify the fix works."""
                 
                 actions = filtered_actions
             
-            # For test mode, filter out any non-.test file actions BEFORE execution
-            if self.mode == 'test':
+        # For test mode, filter out any non-.test file actions BEFORE execution
+        if self.mode == 'test':
             filtered_actions = []
             rejected_actions = []
             for action in actions:
@@ -1458,10 +1458,10 @@ Then re-run the failed commands to verify the fix works."""
                          action.get('file_path') or action.get('file') or '').strip()
                 action_type = action.get('type', '').lower()
                 
-                # Only allow .design files or message actions
+                # Only allow .test files or message actions
                 if action_type == 'message':
                     filtered_actions.append(action)
-                elif target.endswith('.design'):
+                elif target.endswith('.test'):
                     filtered_actions.append(action)
                 else:
                     rejected_actions.append(f"{action_type}: {target}")
