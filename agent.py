@@ -1751,7 +1751,7 @@ def main():
             user_input = ' '.join(args.input)
     
     # Create agent (pass user_input for structure detection in design mode)
-    agent = Agent(args.mode, cwd=args.cwd, design_files=design_files, user_input=user_input or "")
+    agent = Agent(args.mode, cwd=args.cwd, design_files=design_files, user_input=user_input or "", offline=args.offline)
     
     # Handle input
     if user_input:
