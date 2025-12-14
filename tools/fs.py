@@ -48,8 +48,8 @@ def load_project_context(root_dir: Path) -> dict:
             if should_skip_path(file_path):
                 continue
             
-            # Skip hidden files (except .design and .test files)
-            if file.startswith('.') and not (file.endswith('.design') or file.endswith('.test')):
+            # Skip hidden files (except .design and .check files)
+            if file.startswith('.') and not (file.endswith('.design') or file.endswith('.check')):
                 continue
             
             # Check file size
