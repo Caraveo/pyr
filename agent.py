@@ -457,9 +457,72 @@ class Agent:
                 return parsed
                 
             except Exception as e:
-                print(f"Error parsing json5 response: {e}", file=sys.stderr)
-                print(f"Response preview (first 500 chars): {json_str[:500]}", file=sys.stderr)
-                return None
+                error_msg = str(e)
+                # Check if it's an "Unexpected end of input" error (incomplete JSON)
+                if 'Unexpected end of input' in error_msg or 'end of input' in error_msg.lower():
+                    print(f"Warning: JSON appears incomplete. Attempting to fix...", file=sys.stderr)
+                    # Try to complete the JSON more aggressively
+                    # Find the last complete action or structure
+                    last_comma = json_str.rfind(',')
+                    last_quote = json_str.rfind('"')
+                    last_brace = json_str.rfind('}')
+                    last_bracket = json_str.rfind(']')
+                    
+                    # If we're in the middle of a string, try to close it
+                    if last_quote > max(last_brace, last_bracket, last_comma if last_comma != -1 else -1):
+                        # We're likely in the middle of a string - find the opening quote
+                        # Count quotes to see if we're in an unclosed string
+                        quote_count = json_str.count('"')
+                        if quote_count % 2 == 1:  # Odd number means unclosed string
+                            # Find the last unclosed quote and close it
+                            json_str = json_str.rstrip() + '"'
+                    
+                    # Count braces and brackets to see what's missing
+                    open_braces = json_str.count('{')
+                    close_braces = json_str.count('}')
+                    open_brackets = json_str.count('[')
+                    close_brackets = json_str.count(']')
+                    
+                    # Complete missing closing brackets first (for arrays)
+                    if open_brackets > close_brackets:
+                        missing_brackets = open_brackets - close_brackets
+                        json_str = json_str.rstrip() + ']' * missing_brackets
+                    
+                    # Then complete missing braces (for objects)
+                    if open_braces > close_braces:
+                        missing_braces = open_braces - close_braces
+                        json_str = json_str.rstrip() + '}' * missing_braces
+                    
+                    # Try parsing again
+                    try:
+                        parsed = json5.loads(json_str)
+                        print(f"✓ Successfully completed and parsed JSON", file=sys.stderr)
+                        
+                        # Normalize field names
+                        if isinstance(parsed, dict) and 'actions' in parsed:
+                            for action in parsed.get('actions', []):
+                                if isinstance(action, dict):
+                                    if 'path' in action and 'target' not in action:
+                                        action['target'] = action.pop('path')
+                                    if 'file_path' in action and 'target' not in action:
+                                        action['target'] = action.pop('file_path')
+                                    if 'file' in action and 'target' not in action:
+                                        action['target'] = action.pop('file')
+                                    if 'file_name' in action and 'target' not in action:
+                                        action['target'] = action.pop('file_name')
+                        
+                        return parsed
+                    except Exception as e2:
+                        print(f"Error: Could not fix incomplete JSON: {e2}", file=sys.stderr)
+                        print(f"Original error: {error_msg}", file=sys.stderr)
+                        print(f"JSON preview (first 500 chars): {json_str[:500]}", file=sys.stderr)
+                        print(f"JSON preview (last 200 chars): {json_str[-200:]}", file=sys.stderr)
+                        return None
+                else:
+                    print(f"Error parsing json5 response: {e}", file=sys.stderr)
+                    print(f"Response preview (first 500 chars): {json_str[:500]}", file=sys.stderr)
+                    print(f"Response preview (last 200 chars): {json_str[-200:]}", file=sys.stderr)
+                    return None
     
         except Exception as e:
             print(f"Unexpected error parsing json5: {e}", file=sys.stderr)
