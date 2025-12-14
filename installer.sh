@@ -120,7 +120,12 @@ else
         echo "  ✓ json5 already installed"
     else
         echo "  Installing json5 (for better JSON parsing)..."
-        pip3 install --quiet json5 2>/dev/null && echo "    ✓ Installed json5" || echo "    ✗ Failed to install json5 (run manually: pip3 install json5)"
+        if pip3 install --user json5 >/dev/null 2>&1; then
+            echo "    ✓ Installed json5"
+        else
+            echo "    ⚠️  Failed to install json5 (may need sudo or manual install)"
+            echo "       Run manually: pip3 install json5"
+        fi
     fi
     
     # Install duckduckgo-search for web search in debug mode
@@ -128,7 +133,12 @@ else
         echo "  ✓ duckduckgo-search already installed"
     else
         echo "  Installing duckduckgo-search (for web search in debug mode)..."
-        pip3 install --quiet duckduckgo-search 2>/dev/null && echo "    ✓ Installed duckduckgo-search" || echo "    ✗ Failed to install duckduckgo-search (run manually: pip3 install duckduckgo-search)"
+        if pip3 install --user duckduckgo-search >/dev/null 2>&1; then
+            echo "    ✓ Installed duckduckgo-search"
+        else
+            echo "    ⚠️  Failed to install duckduckgo-search (may need sudo or manual install)"
+            echo "       Run manually: pip3 install duckduckgo-search"
+        fi
     fi
 fi
 
