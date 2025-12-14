@@ -298,7 +298,7 @@ class Agent:
                 # Find the opening brace before "actions"
                 start = response.rfind('{', 0, actions_start)
                 if start == -1:
-                    start = response.find('{')
+            start = response.find('{')
                 else:
                     start = response.find('{')
             
@@ -319,7 +319,7 @@ class Agent:
                     # Incomplete JSON - try to find last closing brace
                     end = response.rfind('}') + 1
             else:
-                end = response.rfind('}') + 1
+            end = response.rfind('}') + 1
             
             if start == -1 or end == 0:
                 print(f"Error: No JSON found in response", file=sys.stderr)
@@ -339,7 +339,7 @@ class Agent:
                             if 'file_path' in action and 'target' not in action:
                                 action['target'] = action.pop('file_path')
                 return parsed
-            except json.JSONDecodeError as e:
+        except json.JSONDecodeError as e:
                 # If JSON is incomplete, try to fix it
                 if 'Expecting' in str(e) or 'Unterminated' in str(e):
                     # Try to complete the JSON by adding missing closing braces
@@ -991,11 +991,15 @@ class Agent:
         
         iteration = 0
         last_error = stderr + "\n" + stdout
+        previous_file_count = len(list(self.cwd.rglob('*'))) if self.cwd.exists() else 0
         
         while iteration < max_iterations:
             iteration += 1
             print(f"\n🔧 Debug iteration {iteration} (will stop when command succeeds)", file=sys.stderr)
             print("="*80, file=sys.stderr)
+            
+            # Track files before this iteration
+            files_before = set(self.project_context.keys())
             
             # Build debug prompt with project context
             context_summary = ""
@@ -1065,10 +1069,34 @@ Remember: Start with analysis, use project context, then fix and verify."""
             
             debug_result = debug_agent.process(debug_prompt)
             
+            # Check if any changes were made
+            self.load_context()  # Reload to get latest file state
+            files_after = set(self.project_context.keys())
+            files_changed = files_after - files_before
+            files_removed = files_before - files_after
+            
+            # Check if any file modifications were made
+            has_changes = len(files_changed) > 0 or len(files_removed) > 0
+            has_actions = any(keyword in debug_result for keyword in ["✓ Created", "✓ Edited", "✓ Deleted", "--- Created", "--- Edited", "--- Deleted"])
+            
+            if not has_changes and not has_actions:
+                print(f"⚠️  WARNING: No changes detected in iteration {iteration}!", file=sys.stderr)
+                print(f"   Debug agent did not create, edit, or delete any files.", file=sys.stderr)
+                print(f"   This may indicate the agent needs more context or a different approach.", file=sys.stderr)
+                # Still continue to next iteration, but warn the user
+            
+            if has_changes:
+                print(f"✓ Changes detected: {len(files_changed)} file(s) added, {len(files_removed)} file(s) removed", file=sys.stderr)
+                if files_changed:
+                    for f in list(files_changed)[:5]:  # Show first 5
+                        print(f"   + {f}", file=sys.stderr)
+                if files_removed:
+                    for f in list(files_removed)[:5]:  # Show first 5
+                        print(f"   - {f}", file=sys.stderr)
+            
             # Update our context
             self.project_context.update(debug_agent.project_context)
             self.conversation_history.extend(debug_agent.conversation_history[-1:])
-            self.load_context()
             
             # Check if debug agent ran the command again and it succeeded
             if f"✓ Command succeeded" in debug_result or f"✓ Command '{command}'" in debug_result:
@@ -1210,12 +1238,34 @@ Then re-run the failed commands to verify the fix works."""
                     print("Stopping debug loop - all commands now succeed.", file=sys.stderr)
                     break
             
+            # Check if any changes were made
+            self.load_context()  # Reload to get latest file state
+            files_after = set(self.project_context.keys())
+            files_changed = files_after - files_before
+            files_removed = files_before - files_after
+            
+            # Check if any file modifications were made
+            has_changes = len(files_changed) > 0 or len(files_removed) > 0
+            has_actions = any(keyword in debug_result for keyword in ["✓ Created", "✓ Edited", "✓ Deleted", "--- Created", "--- Edited", "--- Deleted"])
+            
+            if not has_changes and not has_actions:
+                print(f"⚠️  WARNING: No changes detected in iteration {iteration}!", file=sys.stderr)
+                print(f"   Debug agent did not create, edit, or delete any files.", file=sys.stderr)
+                print(f"   This may indicate the agent needs more context or a different approach.", file=sys.stderr)
+                # Still continue to next iteration, but warn the user
+            
+            if has_changes:
+                print(f"✓ Changes detected: {len(files_changed)} file(s) added, {len(files_removed)} file(s) removed", file=sys.stderr)
+                if files_changed:
+                    for f in list(files_changed)[:5]:  # Show first 5
+                        print(f"   + {f}", file=sys.stderr)
+                if files_removed:
+                    for f in list(files_removed)[:5]:  # Show first 5
+                        print(f"   - {f}", file=sys.stderr)
+            
             # Update our context with debug agent's changes
             self.project_context.update(debug_agent.project_context)
             self.conversation_history.extend(debug_agent.conversation_history[-1:])  # Add last debug exchange
-            
-            # Reload context to pick up any file changes
-            self.load_context()
         
         if all_fixed:
             return f"✓ Debug complete: All issues resolved after {iteration} iteration(s)"
@@ -1464,8 +1514,8 @@ def main():
                 user_input = ' '.join(args.input)
     else:
         # For other modes, use input as-is
-        if args.input:
-            user_input = ' '.join(args.input)
+    if args.input:
+        user_input = ' '.join(args.input)
     
     # Create agent (pass user_input for structure detection in design mode)
     agent = Agent(args.mode, cwd=args.cwd, design_files=design_files, user_input=user_input or "")
@@ -1488,7 +1538,7 @@ def main():
                 # Treat as a regular debug prompt
                 result = agent.process(user_input)
         else:
-            result = agent.process(user_input)
+        result = agent.process(user_input)
         print(result)
     else:
         # Interactive REPL mode (especially for 'code' command)
