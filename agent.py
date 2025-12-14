@@ -315,9 +315,7 @@ class Agent:
                     
                     if end == -1:
                         # Incomplete JSON - try to find last closing brace
-            end = response.rfind('}') + 1
-                else:
-                    end = response.rfind('}') + 1
+                        end = response.rfind('}') + 1
             else:
                 # No "actions" found, try to find any JSON object
                 start = response.find('{')
