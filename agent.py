@@ -1567,7 +1567,7 @@ def main():
                 result = agent.process(user_input)
         else:
             # For non-debug modes, process normally
-        result = agent.process(user_input)
+            result = agent.process(user_input)
         print(result)
     else:
         # Interactive REPL mode (especially for 'code' command)
