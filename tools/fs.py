@@ -48,8 +48,8 @@ def load_project_context(root_dir: Path) -> dict:
             if should_skip_path(file_path):
                 continue
             
-            # Skip hidden files (except .design files)
-            if file.startswith('.') and not file.endswith('.design'):
+            # Skip hidden files (except .design and .test files)
+            if file.startswith('.') and not (file.endswith('.design') or file.endswith('.test')):
                 continue
             
             # Check file size
@@ -178,3 +178,61 @@ def find_all_design_files(root_dir: Path) -> List[Path]:
     design_files = list(root_dir.glob("*.design"))
     return sorted(design_files)
 
+
+def find_test_files(root_dir: Path) -> List[Path]:
+    """
+    Find test files in common test locations.
+    Looks for:
+    - test/[test-name]/ directories
+    - Tests/ directory (Swift)
+    - tests/ directory (Python, Node.js)
+    - *_test.py, *.test.swift, *.spec.js files
+    """
+    root_dir = Path(root_dir).resolve()
+    test_files = []
+    
+    # Common test directory patterns
+    test_dirs = [
+        root_dir / 'test',
+        root_dir / 'tests',
+        root_dir / 'Tests',  # Swift
+        root_dir / '__tests__',  # JavaScript
+    ]
+    
+    # Look for test directories
+    for test_dir in test_dirs:
+        if test_dir.exists() and test_dir.is_dir():
+            # Find all test files in subdirectories
+            for test_file in test_dir.rglob('*'):
+                if test_file.is_file():
+                    # Check if it's a test file by extension or name
+                    if (test_file.suffix in ['.py', '.swift', '.js', '.ts', '.java', '.go'] or
+                        'test' in test_file.name.lower() or
+                        'spec' in test_file.name.lower()):
+                        test_files.append(test_file)
+    
+    # Also look for test files at root level
+    test_patterns = [
+        '*_test.py',
+        '*Test.swift',
+        '*.test.swift',
+        '*.spec.js',
+        '*.spec.ts',
+        '*_test.go',
+        '*Test.java',
+    ]
+    
+    for pattern in test_patterns:
+        test_files.extend(root_dir.glob(pattern))
+    
+    # Look for test/[test-name]/ pattern
+    test_dir = root_dir / 'test'
+    if test_dir.exists():
+        for test_subdir in test_dir.iterdir():
+            if test_subdir.is_dir():
+                # Find test files in this subdirectory
+                for test_file in test_subdir.rglob('*'):
+                    if test_file.is_file() and test_file.suffix in ['.py', '.swift', '.js', '.ts', '.java', '.go']:
+                        test_files.append(test_file)
+    
+    return sorted(set(test_files))  # Remove duplicates and sort

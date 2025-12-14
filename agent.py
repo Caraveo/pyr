@@ -31,7 +31,8 @@ from tools.fs import (
     write_file,
     delete_file,
     find_design_file,
-    find_all_design_files
+    find_all_design_files,
+    find_test_files
 )
 from tools.structures import (
     detect_structure,
