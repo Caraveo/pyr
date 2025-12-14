@@ -1449,7 +1449,7 @@ Then re-run the failed commands to verify the fix works."""
                 
                 actions = filtered_actions
             
-        # For test mode, filter out any non-.test file actions BEFORE execution
+        # For test mode, filter out any non-.check file actions BEFORE execution
         if self.mode == 'test':
             filtered_actions = []
             rejected_actions = []
@@ -1458,10 +1458,10 @@ Then re-run the failed commands to verify the fix works."""
                          action.get('file_path') or action.get('file') or '').strip()
                 action_type = action.get('type', '').lower()
                 
-                # Only allow .test files or message actions
+                # Only allow .check files or message actions
                 if action_type == 'message':
                     filtered_actions.append(action)
-                elif target.endswith('.test'):
+                elif target.endswith('.check'):
                     filtered_actions.append(action)
                 else:
                     rejected_actions.append(f"{action_type}: {target}")
