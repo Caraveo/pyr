@@ -11,6 +11,12 @@ from pathlib import Path
 from typing import List, Set, Optional, Dict, Any
 from datetime import datetime
 
+# Import syntax validation (handle both relative and absolute imports)
+try:
+    from .syntax import validate_file_syntax
+except ImportError:
+    from tools.syntax import validate_file_syntax
+
 
 # Directories to skip when loading context
 SKIP_DIRS = {'.git', 'node_modules', 'dist', 'build', '__pycache__', '.pytest_cache', '.venv', 'venv', 'env'}
@@ -122,6 +128,16 @@ def write_file(file_path: Path, content: str, create_backup: bool = True) -> boo
     
     # Ensure parent directory exists
     file_path.parent.mkdir(parents=True, exist_ok=True)
+    
+    # Validate syntax before writing (for code files)
+    is_valid, error_msg, error_details = validate_file_syntax(file_path, content)
+    if not is_valid and error_msg:
+        print(f"⚠️  Syntax error detected in {file_path.name}: {error_msg}", file=sys.stderr)
+        if error_details:
+            print(f"   Location: line {error_details.get('line', '?')}, column {error_details.get('column', '?')}", file=sys.stderr)
+            if 'error_line' in error_details:
+                print(f"   Code: {error_details['error_line']}", file=sys.stderr)
+        print(f"   File will still be written, but may have syntax errors.", file=sys.stderr)
     
     try:
         with open(file_path, 'w', encoding='utf-8') as f:

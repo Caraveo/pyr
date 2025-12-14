@@ -34,6 +34,7 @@ cp "$SCRIPT_DIR/tools/fs.py" "$INSTALL_DIR/tools/"
 cp "$SCRIPT_DIR/tools/shell.py" "$INSTALL_DIR/tools/"
 cp "$SCRIPT_DIR/tools/diff.py" "$INSTALL_DIR/tools/"
 cp "$SCRIPT_DIR/tools/edit.py" "$INSTALL_DIR/tools/" 2>/dev/null || true
+cp "$SCRIPT_DIR/tools/syntax.py" "$INSTALL_DIR/tools/" 2>/dev/null || true
 cp "$SCRIPT_DIR/tools/structures.py" "$INSTALL_DIR/tools/" 2>/dev/null || true
 cp "$SCRIPT_DIR/tools/progress.py" "$INSTALL_DIR/tools/" 2>/dev/null || true
 cp "$SCRIPT_DIR/tools/web.py" "$INSTALL_DIR/tools/" 2>/dev/null || true
@@ -159,6 +160,91 @@ else
             echo "       pip3 install --user ddgs"
             echo "       Or: pip3 install --break-system-packages ddgs"
         fi
+    fi
+    
+    # Install tree-sitter (for syntax validation)
+    if python3 -c "import tree_sitter" 2>/dev/null; then
+        echo "  ✓ tree-sitter already installed"
+    else
+        echo "  Installing tree-sitter (for syntax validation)..."
+        # Try multiple installation methods for compatibility
+        if python3 -m pip install --user tree-sitter >/dev/null 2>&1; then
+            echo "    ✓ Installed tree-sitter (user install)"
+        elif python3 -m pip install --break-system-packages tree-sitter >/dev/null 2>&1; then
+            echo "    ✓ Installed tree-sitter (system install)"
+        elif pip3 install --user tree-sitter >/dev/null 2>&1; then
+            echo "    ✓ Installed tree-sitter (user install via pip3)"
+        elif pip3 install --break-system-packages tree-sitter >/dev/null 2>&1; then
+            echo "    ✓ Installed tree-sitter (system install via pip3)"
+        else
+            echo "    ⚠️  Warning: Could not install tree-sitter automatically"
+            echo "       Syntax validation will be skipped. Install manually:"
+            echo "       pip3 install --user tree-sitter"
+            echo "       Or: pip3 install --break-system-packages tree-sitter"
+        fi
+    fi
+    
+    # Install common tree-sitter language parsers
+    if python3 -c "import tree_sitter" 2>/dev/null; then
+        echo "  Installing tree-sitter language parsers (for syntax validation)..."
+        
+        # List of common language parsers to install
+        parsers=(
+            "tree-sitter-python"
+            "tree-sitter-javascript"
+            "tree-sitter-typescript"
+            "tree-sitter-java"
+            "tree-sitter-c"
+            "tree-sitter-cpp"
+            "tree-sitter-rust"
+            "tree-sitter-go"
+            "tree-sitter-ruby"
+            "tree-sitter-php"
+            "tree-sitter-bash"
+            "tree-sitter-yaml"
+            "tree-sitter-json"
+            "tree-sitter-html"
+            "tree-sitter-css"
+            "tree-sitter-sql"
+        )
+        
+        for parser in "${parsers[@]}"; do
+            parser_name=$(echo "$parser" | sed 's/tree-sitter-//')
+            if python3 -c "import tree_sitter_${parser_name}" 2>/dev/null; then
+                echo "    ✓ $parser_name parser already installed"
+            else
+                # Try to install (silently, don't fail if it doesn't work)
+                if python3 -m pip install --user "$parser" >/dev/null 2>&1 || \
+                   python3 -m pip install --break-system-packages "$parser" >/dev/null 2>&1 || \
+                   pip3 install --user "$parser" >/dev/null 2>&1 || \
+                   pip3 install --break-system-packages "$parser" >/dev/null 2>&1; then
+                    echo "    ✓ Installed $parser_name parser"
+                else
+                    echo "    ⚠️  Could not install $parser_name parser (optional)"
+                fi
+            fi
+        done
+        
+        # Optional parsers (Swift, Kotlin, etc.) - try to install but don't warn if they fail
+        optional_parsers=(
+            "tree-sitter-swift"
+            "tree-sitter-kotlin"
+            "tree-sitter-lua"
+            "tree-sitter-r"
+            "tree-sitter-toml"
+            "tree-sitter-xml"
+        )
+        
+        for parser in "${optional_parsers[@]}"; do
+            parser_name=$(echo "$parser" | sed 's/tree-sitter-//')
+            if ! python3 -c "import tree_sitter_${parser_name}" 2>/dev/null; then
+                # Try to install silently (don't show output)
+                python3 -m pip install --user "$parser" >/dev/null 2>&1 || \
+                python3 -m pip install --break-system-packages "$parser" >/dev/null 2>&1 || \
+                pip3 install --user "$parser" >/dev/null 2>&1 || \
+                pip3 install --break-system-packages "$parser" >/dev/null 2>&1 || true
+            fi
+        done
     fi
     
 fi

@@ -8,8 +8,15 @@ import subprocess
 import shlex
 import shutil
 import tempfile
+import sys
 from pathlib import Path
 from typing import Optional, Tuple, List
+
+# Import syntax validation (handle both relative and absolute imports)
+try:
+    from .syntax import validate_file_syntax
+except ImportError:
+    from tools.syntax import validate_file_syntax
 
 
 def append_line(file_path: Path, line: str) -> Tuple[bool, str]:
@@ -43,6 +50,15 @@ def append_line(file_path: Path, line: str) -> Tuple[bool, str]:
         )
         
         if result.returncode == 0:
+            # Validate syntax after append
+            if file_path.exists():
+                with open(file_path, 'r', encoding='utf-8') as f:
+                    full_content = f.read()
+                is_valid, error_msg, error_details = validate_file_syntax(file_path, full_content)
+                if not is_valid and error_msg:
+                    print(f"⚠️  Syntax warning after append: {error_msg}", file=sys.stderr)
+                    if error_details and 'error_line' in error_details:
+                        print(f"   Line {error_details['line']}: {error_details['error_line']}", file=sys.stderr)
             return (True, "")
         else:
             return (False, result.stderr or "Unknown error")
@@ -86,6 +102,15 @@ def append_block(file_path: Path, content: str) -> Tuple[bool, str]:
         )
         
         if result.returncode == 0:
+            # Validate syntax after append
+            if file_path.exists():
+                with open(file_path, 'r', encoding='utf-8') as f:
+                    full_content = f.read()
+                is_valid, error_msg, error_details = validate_file_syntax(file_path, full_content)
+                if not is_valid and error_msg:
+                    print(f"⚠️  Syntax warning after append block: {error_msg}", file=sys.stderr)
+                    if error_details and 'error_line' in error_details:
+                        print(f"   Line {error_details['line']}: {error_details['error_line']}", file=sys.stderr)
             return (True, "")
         else:
             return (False, result.stderr or "Unknown error")
@@ -150,6 +175,13 @@ def insert_at_line(file_path: Path, line_number: int, content: str) -> Tuple[boo
         # Move temp file to final location (atomic operation)
         shutil.move(tmp_path, file_path)
         
+        # Validate syntax after insert
+        is_valid, error_msg, error_details = validate_file_syntax(file_path, ''.join(lines))
+        if not is_valid and error_msg:
+            print(f"⚠️  Syntax warning after insert: {error_msg}", file=sys.stderr)
+            if error_details and 'error_line' in error_details:
+                print(f"   Line {error_details['line']}: {error_details['error_line']}", file=sys.stderr)
+        
         return (True, "")
     
     except Exception as e:
@@ -182,28 +214,25 @@ def replace_line(file_path: Path, line_number: int, new_content: str) -> Tuple[b
         if line_number < 1 or line_number > len(lines):
             return (False, f"Line number {line_number} is out of range (file has {len(lines)} lines)")
         
-        # Replace the line (keep newline if original had one)
-        lines[line_number - 1] = new_content + ('\n' if not new_content.endswith('\n') and (line_number == len(lines) or lines[line_number - 1].endswith('\n')) else '')
+        # Ensure new content ends with a newline if it's not empty
+        formatted_content = new_content if new_content.endswith('\n') else new_content + '\n'
+        lines[line_number - 1] = formatted_content
         
-        # Write back
-        with open(file_path, 'w', encoding='utf-8') as f:
-            f.writelines(lines)
+        # Write back using a temporary file for atomic operation
+        with tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='.tmp', dir=file_path.parent, encoding='utf-8') as tmp:
+            tmp.writelines(lines)
+            tmp_path = tmp.name
         
-        result = subprocess.run(
-            command,
-            shell=True,
-            capture_output=True,
-            text=True,
-            timeout=10
-        )
+        shutil.move(tmp_path, file_path)
         
-        if result.returncode == 0:
-            return (True, "")
-        else:
-            return (False, result.stderr or "Unknown error")
-    
-    except subprocess.TimeoutExpired:
-        return (False, "Command timed out")
+        # Validate syntax after replace
+        is_valid, error_msg, error_details = validate_file_syntax(file_path, ''.join(lines))
+        if not is_valid and error_msg:
+            print(f"⚠️  Syntax warning after replace: {error_msg}", file=sys.stderr)
+            if error_details and 'error_line' in error_details:
+                print(f"   Line {error_details['line']}: {error_details['error_line']}", file=sys.stderr)
+        
+        return (True, "")
     except Exception as e:
         return (False, str(e))
 
@@ -236,12 +265,21 @@ def delete_line(file_path: Path, line_number: int) -> Tuple[bool, str]:
         # Delete the line (line_number is 1-indexed)
         del lines[line_number - 1]
         
-        # Write back
-        with open(file_path, 'w', encoding='utf-8') as f:
-            f.writelines(lines)
-    
-    except subprocess.TimeoutExpired:
-        return (False, "Command timed out")
+        # Write back using a temporary file for atomic operation
+        with tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='.tmp', dir=file_path.parent, encoding='utf-8') as tmp:
+            tmp.writelines(lines)
+            tmp_path = tmp.name
+        
+        shutil.move(tmp_path, file_path)
+        
+        # Validate syntax after delete
+        is_valid, error_msg, error_details = validate_file_syntax(file_path, ''.join(lines))
+        if not is_valid and error_msg:
+            print(f"⚠️  Syntax warning after delete: {error_msg}", file=sys.stderr)
+            if error_details and 'error_line' in error_details:
+                print(f"   Line {error_details['line']}: {error_details['error_line']}", file=sys.stderr)
+        
+        return (True, "")
     except Exception as e:
         return (False, str(e))
 
