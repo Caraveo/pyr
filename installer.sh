@@ -115,11 +115,11 @@ if ! command -v pip3 &> /dev/null; then
     echo "  ⚠️  Warning: pip3 not found. Please install Python 3 with pip to use optional features."
     echo "     Install manually: pip3 install json5 duckduckgo-search"
 else
-    # Install json5 for better JSON parsing
+    # Install json5 (REQUIRED for parsing AI responses)
     if python3 -c "import json5" 2>/dev/null; then
         echo "  ✓ json5 already installed"
     else
-        echo "  Installing json5 (for better JSON parsing)..."
+        echo "  Installing json5 (REQUIRED for parsing AI responses)..."
         # Try multiple installation methods for compatibility
         if python3 -m pip install --user json5 >/dev/null 2>&1; then
             echo "    ✓ Installed json5 (user install)"
@@ -130,9 +130,11 @@ else
         elif pip3 install --break-system-packages json5 >/dev/null 2>&1; then
             echo "    ✓ Installed json5 (system install via pip3)"
         else
-            echo "    ✗ Could not install json5 automatically"
-            echo "       Please run manually: pip3 install --user json5"
+            echo "    ✗ ERROR: Could not install json5 automatically"
+            echo "       json5 is REQUIRED. Please install manually:"
+            echo "       pip3 install --user json5"
             echo "       Or: pip3 install --break-system-packages json5"
+            exit 1
         fi
     fi
     

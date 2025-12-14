@@ -12,15 +12,15 @@ import argparse
 from pathlib import Path
 from typing import List, Dict, Optional, Any
 
-# Try to import json5 for more lenient JSON parsing
-# json5 handles trailing commas, comments, and other non-standard JSON
+# json5 is REQUIRED for parsing AI responses
+# json5 handles trailing commas, comments, unescaped newlines, and other non-standard JSON
 try:
     import json5  # type: ignore
-    HAS_JSON5 = True
 except ImportError:
-    HAS_JSON5 = False
-    # json5 not available, will use fallback methods
-    # Install with: pip3 install json5
+    print("ERROR: json5 is required but not installed.", file=sys.stderr)
+    print("Install with: pip3 install json5", file=sys.stderr)
+    print("Or run the installer: bash installer.sh", file=sys.stderr)
+    sys.exit(1)
 
 # Add tools directory to path
 sys.path.insert(0, str(Path(__file__).parent))
@@ -336,487 +336,62 @@ class Agent:
         return "\n".join(prompt_parts)
     
     def parse_response(self, response: str) -> Optional[Dict[str, Any]]:
-        """Parse JSON response from the model with robust error handling using multiple strategies."""
+        """Parse json5 response from the model using json5 library."""
         try:
-            # Try to extract JSON from response
+            # Clean and extract JSON from response
             response = response.strip()
             
             # Remove markdown code blocks if present
-            # Handle ```json ... ``` or ``` ... ```
+            # Handle ```json5 ... ```, ```json ... ```, or ``` ... ```
             if response.startswith('```'):
                 # Find the closing ```
                 end_marker = response.find('```', 3)
                 if end_marker != -1:
                     # Extract content between code blocks
                     response = response[3:end_marker].strip()
-                    # Remove language tag if present (e.g., "json")
-                    if response.startswith('json'):
+                    # Remove language tag if present (e.g., "json5" or "json")
+                    if response.startswith('json5'):
+                        response = response[5:].strip()
+                    elif response.startswith('json'):
                         response = response[4:].strip()
                     if response.startswith('\n'):
                         response = response[1:].strip()
             
-            # Find JSON object in response - try to find complete objects
-            # Look for the main actions object
-            start = -1
-            end = -1
-            actions_start = response.find('"actions"')
-            if actions_start != -1:
-                # Find the opening brace before "actions"
-                start = response.rfind('{', 0, actions_start)
-                if start == -1:
-                    start = response.find('{')
-                
-                # Find matching closing brace
-                if start != -1:
-                    depth = 0
-                    end = -1
-                    for i in range(start, len(response)):
-                        if response[i] == '{':
-                            depth += 1
-                        elif response[i] == '}':
-                            depth -= 1
-                            if depth == 0:
-                                end = i + 1
-                                break
-                    
-                if end == -1 or end == 0:
-                    # Incomplete JSON - try to find last closing brace
-                    last_brace = response.rfind('}')
-                    if last_brace != -1:
-                        end = last_brace + 1
-                    else:
-                        # No closing brace found - JSON might be incomplete
-                        # Try to extract what we have and complete it later
-                        end = len(response)
-            else:
-                # No "actions" found, try to find any JSON object
-                start = response.find('{')
-                if start != -1:
-                    last_brace = response.rfind('}')
-                    if last_brace != -1:
-                        end = last_brace + 1
-                    else:
-                        # No closing brace - use full response
-                        end = len(response)
-            
+            # Find JSON object boundaries - look for outermost { ... }
+            start = response.find('{')
             if start == -1:
                 print(f"Error: No JSON found in response (no opening brace)", file=sys.stderr)
                 print(f"Response preview (first 500 chars): {response[:500]}", file=sys.stderr)
                 return None
             
-            if end <= start:
-                print(f"Error: Invalid JSON boundaries (start={start}, end={end})", file=sys.stderr)
-                print(f"Response preview (first 500 chars): {response[:500]}", file=sys.stderr)
-                # Try to use full response from start
-                end = len(response)
+            # Find matching closing brace
+            depth = 0
+            end = -1
+            for i in range(start, len(response)):
+                if response[i] == '{':
+                    depth += 1
+                elif response[i] == '}':
+                    depth -= 1
+                    if depth == 0:
+                        end = i + 1
+                        break
+            
+            if end == -1:
+                # Incomplete JSON - try to find last closing brace
+                last_brace = response.rfind('}')
+                if last_brace != -1:
+                    end = last_brace + 1
+                else:
+                    print(f"Error: Incomplete JSON (no closing brace found)", file=sys.stderr)
+                    print(f"Response preview (first 500 chars): {response[:500]}", file=sys.stderr)
+                    return None
             
             json_str = response[start:end]
-            
-            # Strategy 1: Try standard JSON parser (fast path)
-            try:
-                parsed = json.loads(json_str)
-                # Normalize field names if needed (path -> target)
-                if isinstance(parsed, dict) and 'actions' in parsed:
-                    for action in parsed.get('actions', []):
-                        if isinstance(action, dict):
-                            if 'path' in action and 'target' not in action:
-                                action['target'] = action.pop('path')
-                            if 'file_path' in action and 'target' not in action:
-                                action['target'] = action.pop('file_path')
-                return parsed
-            except json.JSONDecodeError as e:
-                # If JSON is incomplete, try to fix it
-                if 'Expecting' in str(e) or 'Unterminated' in str(e):
-                    # Try to complete the JSON by adding missing closing braces
-                    open_braces = json_str.count('{')
-                    close_braces = json_str.count('}')
-                    missing = open_braces - close_braces
-                    if missing > 0:
-                        # Also check for incomplete strings
-                        json_str_fixed = json_str
-                        # Count unclosed quotes in strings
-                        in_string = False
-                        escape_next = False
-                        for char in json_str:
-                            if escape_next:
-                                escape_next = False
-                            elif char == '\\':
-                                escape_next = True
-                            elif char == '"' and not escape_next:
-                                in_string = not in_string
-                        
-                        # If string is unclosed, close it
-                        if in_string:
-                            json_str_fixed = json_str_fixed.rstrip() + '"'
-                        
-                        json_str_fixed += '}' * missing
-                        try:
-                            parsed = json.loads(json_str_fixed)
-                            # Normalize field names
-                            if isinstance(parsed, dict) and 'actions' in parsed:
-                                for action in parsed.get('actions', []):
-                                    if isinstance(action, dict):
-                                        if 'path' in action and 'target' not in action:
-                                            action['target'] = action.pop('path')
-                                        if 'file_path' in action and 'target' not in action:
-                                            action['target'] = action.pop('file_path')
-                            return parsed
-                        except:
-                            pass
-                pass
-            
-            # Strategy 2: Try json5 (more lenient, handles trailing commas, comments, etc.)
-            if HAS_JSON5:
-                try:
-                    return json5.loads(json_str)
-                except Exception:
-                    pass
-            
-            # Strategy 3: Fix common JSON issues
-            json_str_fixed = self._fix_common_json_issues(json_str)
-            try:
-                return json.loads(json_str_fixed)
-            except json.JSONDecodeError:
-                pass
-            
-            # Strategy 4: Try json5 on fixed version
-            if HAS_JSON5:
-                try:
-                    return json5.loads(json_str_fixed)
-                except Exception:
-                    pass
-            
-            # Strategy 5: Fix unescaped newlines in content fields specifically
-            # This handles cases where the model outputs literal \n instead of \\n
-            try:
-                # Find all "content": "..." fields and fix newlines
-                def fix_content_newlines_in_json(text):
-                    result = []
-                    i = 0
-                    in_content_value = False
-                    content_start = -1
-                    
-                    while i < len(text):
-                        # Look for "content": pattern
-                        if (i + 10 < len(text) and 
-                            text[i:i+10] == '"content":'):
-                            # Skip to the opening quote
-                            j = i + 10
-                            while j < len(text) and text[j] in ' \t\n\r:':
-                                j += 1
-                            if j < len(text) and text[j] == '"':
-                                in_content_value = True
-                                content_start = j
-                                result.append(text[i:j+1])
-                                i = j + 1
-                                continue
-                        
-                        if in_content_value:
-                            # We're inside a content string value
-                            if text[i] == '\\':
-                                # Escaped character
-                                if i + 1 < len(text):
-                                    result.append(text[i:i+2])
-                                    i += 2
-                                else:
-                                    result.append(text[i])
-                                    i += 1
-                            elif text[i] == '"':
-                                # Check if this closes the content string
-                                # Look ahead to see if we have a comma or closing brace
-                                j = i + 1
-                                while j < len(text) and text[j] in ' \t\n\r':
-                                    j += 1
-                                if j >= len(text) or text[j] in ',}]':
-                                    # This closes the content string
-                                    in_content_value = False
-                                    result.append(text[i])
-                                    i += 1
-                                else:
-                                    # Escaped quote
-                                    result.append('\\"')
-                                    i += 1
-                            elif text[i] == '\n' and (i == 0 or text[i-1] != '\\'):
-                                # Unescaped newline - escape it
-                                result.append('\\n')
-                                i += 1
-                            elif text[i] == '\r' and (i == 0 or text[i-1] != '\\'):
-                                # Unescaped carriage return
-                                result.append('\\r')
-                                i += 1
-                            elif text[i] == '\t' and (i == 0 or text[i-1] != '\\'):
-                                # Unescaped tab
-                                result.append('\\t')
-                                i += 1
-                            else:
-                                result.append(text[i])
-                                i += 1
-                        else:
-                            result.append(text[i])
-                            i += 1
-                    
-                    return ''.join(result)
-                
-                json_str_content_fixed = fix_content_newlines_in_json(json_str)
-                try:
-                    return json.loads(json_str_content_fixed)
-                except json.JSONDecodeError:
-                    # Try with json5 if available
-                    if HAS_JSON5:
-                        try:
-                            return json5.loads(json_str_content_fixed)
-                        except:
-                            pass
-            except Exception:
-                pass
-            
-            # Strategy 6: Try to convert alternative JSON formats to standard format
-            # Some models return {"action": "...", "file_path": "...", "content": "..."} instead of {"actions": [...]}
-            # Also handle multiple JSON objects separated by newlines
-            try:
-                # Try to find all JSON objects in the response
-                json_objects = []
-                i = 0
-                while i < len(json_str):
-                    if json_str[i] == '{':
-                        # Find matching closing brace
-                        depth = 0
-                        start = i
-                        for j in range(i, len(json_str)):
-                            if json_str[j] == '{':
-                                depth += 1
-                            elif json_str[j] == '}':
-                                depth -= 1
-                                if depth == 0:
-                                    # Found complete object
-                                    obj_str = json_str[start:j+1]
-                                    try:
-                                        parsed = json.loads(obj_str)
-                                        json_objects.append(parsed)
-                                    except:
-                                        pass
-                                    i = j + 1
-                                    break
-                        else:
-                            i += 1
-                    else:
-                        i += 1
-                
-                # Process all found JSON objects
-                if json_objects:
-                    actions = []
-                    for parsed in json_objects:
-                        # Check if it's a single action object
-                        if isinstance(parsed, dict) and 'action' in parsed:
-                            # Convert single action to actions array format
-                            action_type_map = {
-                                'create_project': 'create',
-                                'add_file': 'create',
-                                'create_file': 'create',
-                                'edit_file': 'edit',
-                                'update_file': 'edit',
-                                'delete_file': 'delete',
-                                'run_command': 'run',
-                                'execute': 'run'
-                            }
-                            action_type = action_type_map.get(parsed.get('action', ''), 'create')
-                            target = (parsed.get('file_path') or parsed.get('target') or 
-                                     parsed.get('path') or parsed.get('file') or 
-                                     parsed.get('file_name') or '').strip()
-                            content = parsed.get('content') or parsed.get('code') or parsed.get('data') or ''
-                            
-                            # Only add if target is not empty
-                            if target:
-                                actions.append({
-                                    "type": action_type,
-                                    "target": target,
-                                    "content": content
-                                })
-                            else:
-                                # Try to infer target from other fields
-                                project_name = parsed.get('project_name', '')
-                                if project_name and action_type == 'create':
-                                    # Might be creating a project structure
-                                    target = f"{project_name}.design"
-                                    actions.append({
-                                        "type": action_type,
-                                        "target": target,
-                                        "content": content
-                                    })
-                        # Check if it's already in the correct format
-                        elif isinstance(parsed, dict) and 'actions' in parsed:
-                            if isinstance(parsed['actions'], list):
-                                actions.extend(parsed['actions'])
-                    
-                    if actions:
-                        return {"actions": actions}
-                
-                # Try single object parse
-                parsed = json.loads(json_str)
-                if isinstance(parsed, dict) and 'action' in parsed:
-                    action_type_map = {
-                        'create_project': 'create',
-                        'add_file': 'create',
-                        'create_file': 'create',
-                        'edit_file': 'edit',
-                        'update_file': 'edit',
-                        'delete_file': 'delete',
-                        'run_command': 'run',
-                        'execute': 'run'
-                    }
-                    action_type = action_type_map.get(parsed.get('action', ''), 'create')
-                    target = (parsed.get('file_path') or parsed.get('target') or 
-                             parsed.get('path') or parsed.get('file') or '').strip()
-                    content = parsed.get('content') or parsed.get('code') or ''
-                    
-                    if target:  # Only return if target is not empty
-                        return {
-                            "actions": [{
-                                "type": action_type,
-                                "target": target,
-                                "content": content
-                            }]
-                        }
-                # Check if it's already in the correct format
-                elif isinstance(parsed, dict) and 'actions' in parsed:
-                    return parsed
-            except:
-                pass
-            
-            # Strategy 7: Extract actions array directly using regex (last resort)
-            actions_match = re.search(r'"actions"\s*:\s*\[(.*?)\]', json_str, re.DOTALL)
-            if actions_match:
-                try:
-                    # Try to reconstruct valid JSON
-                    actions_str = actions_match.group(1)
-                    # Simple extraction - look for action objects
-                    action_objects = re.findall(r'\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}', actions_str)
-                    if action_objects:
-                        actions = []
-                        for obj_str in action_objects:
-                            try:
-                                # Try to parse individual action
-                                obj_str = '{' + obj_str.strip('{}') + '}'
-                                # Fix common issues in action object
-                                obj_fixed = self._fix_common_json_issues(obj_str)
-                                action = json.loads(obj_fixed)
-                                actions.append(action)
-                            except:
-                                continue
-                        if actions:
-                            return {"actions": actions}
-                except Exception:
-                    pass
-            
-            # If all strategies fail, show error but don't crash
-            print(f"Warning: Could not parse JSON response after all strategies", file=sys.stderr)
-            print(f"Response preview (first 500 chars): {response[:500]}", file=sys.stderr)
-            return None
     
         except Exception as e:
-            print(f"Unexpected error parsing JSON: {e}", file=sys.stderr)
+            print(f"Unexpected error parsing json5: {e}", file=sys.stderr)
             print(f"Response preview (first 500 chars): {response[:500] if response else 'Empty response'}", file=sys.stderr)
             return None
-    
-    def _fix_common_json_issues(self, json_str: str) -> str:
-        """Fix common JSON issues like invalid escape sequences, unescaped control chars, etc."""
-        result = []
-        in_string = False
-        escape_next = False
-        i = 0
-        
-        while i < len(json_str):
-            char = json_str[i]
-            
-            if escape_next:
-                # We're processing an escaped character
-                if char in ['n', 'r', 't', 'b', 'f', '\\', '"', '/']:
-                    # Valid escape sequences
-                    result.append('\\' + char)
-                elif char == 'u':
-                    # Unicode escape - try to preserve it
-                    if i + 4 < len(json_str):
-                        result.append('\\u' + json_str[i+1:i+5])
-                        i += 4
-                    else:
-                        result.append('\\u0000')  # Invalid, replace with null
-                else:
-                    # Invalid escape sequence - remove the backslash or replace
-                    # Common invalid escapes: \s, \d, etc. - just output the char
-                    result.append(char)
-                escape_next = False
-            elif char == '\\':
-                result.append(char)
-                escape_next = True
-            elif char == '"':
-                # Check if this quote is escaped
-                if i > 0 and json_str[i-1] == '\\':
-                    # Check if the backslash itself is escaped
-                    backslash_count = 0
-                    j = i - 1
-                    while j >= 0 and json_str[j] == '\\':
-                        backslash_count += 1
-                        j -= 1
-                    # If odd number of backslashes, the quote is escaped
-                    if backslash_count % 2 == 1:
-                        result.append(char)
-                    else:
-                        in_string = not in_string
-                        result.append(char)
-                else:
-                    in_string = not in_string
-                    result.append(char)
-            elif in_string:
-                # Inside a string value
-                if ord(char) < 32:  # Control character
-                    # Escape common control characters
-                    if char == '\n':
-                        result.append('\\n')
-                    elif char == '\r':
-                        result.append('\\r')
-                    elif char == '\t':
-                        result.append('\\t')
-                    # Remove other control characters
-                elif char == '"':
-                    # Unescaped quote inside string - escape it
-                    result.append('\\"')
-                else:
-                    result.append(char)
-            else:
-                # Outside string
-                result.append(char)
-            i += 1
-        
-        # Additional pass: fix unescaped newlines that might have been missed
-        # Look for patterns like: "content": "...\n..." where \n is not escaped
-        fixed = ''.join(result)
-        
-        # Try to fix unescaped newlines in "content" fields more aggressively
-        # This regex finds "content": "..." and fixes newlines inside
-        import re
-        def fix_content_newlines(match):
-            prefix = match.group(1)  # "content": "
-            content = match.group(2)  # the content
-            suffix = match.group(3)  # closing quote
-            
-            # Escape newlines, carriage returns, and tabs
-            content = content.replace('\n', '\\n')
-            content = content.replace('\r', '\\r')
-            content = content.replace('\t', '\\t')
-            # Escape quotes that aren't already escaped
-            content = re.sub(r'(?<!\\)"', '\\"', content)
-            
-            return prefix + content + suffix
-        
-        # Match "content": "..." patterns
-        fixed = re.sub(
-            r'("content"\s*:\s*")(.*?)(")',
-            fix_content_newlines,
-            fixed,
-            flags=re.DOTALL
-        )
-        
-        return fixed
     
     def execute_actions(self, actions: List[Dict[str, Any]], auto_debug: bool = True) -> str:
         """Execute a list of actions and return a summary."""

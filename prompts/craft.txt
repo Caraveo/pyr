@@ -11,7 +11,7 @@ CONTEXT:
 IMPORTANT: When design documents are provided, they contain the specification for what you should implement. Follow the design documents closely and implement exactly what is described.
 
 RESPONSE FORMAT:
-You must respond ONLY in valid JSON format:
+You must respond ONLY in valid json5 format (json5 allows trailing commas, comments, and unescaped newlines):
 
 {
   "actions": [

@@ -10,7 +10,7 @@ CONTEXT:
 - You have access to web search results (when available) to find solutions and best practices
 
 RESPONSE FORMAT:
-You must respond ONLY in valid JSON format:
+You must respond ONLY in valid json5 format (json5 allows trailing commas, comments, and unescaped newlines):
 
 {
   "actions": [
