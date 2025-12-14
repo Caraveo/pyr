@@ -328,9 +328,9 @@ ACTIONS TAKEN:
         with open(prompts_file, 'a', encoding='utf-8') as f:
             f.write(entry)
         return True
-        except (OSError, PermissionError) as e:
-            print(f"Warning: Could not update {project_name}.prompts: {e}", file=sys.stderr)
-            return False
+    except (OSError, PermissionError) as e:
+        print(f"Warning: Could not update {project_name}.prompts: {e}", file=sys.stderr)
+        return False
 
 
 def update_project_context(root_dir: Path, project_context: Dict[str, str], 
