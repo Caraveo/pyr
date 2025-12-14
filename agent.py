@@ -746,7 +746,9 @@ class Agent:
         for action in actions:
             action_type_raw = action.get('type', '').lower()
             action_type = normalize_action_type(action_type_raw)
-            target = action.get('target', '').strip()
+            # Try multiple field names for target
+            target = (action.get('target') or action.get('path') or 
+                     action.get('file_path') or action.get('file') or '').strip()
             content = action.get('content', '')
             
             # Validate target is not empty for file operations
@@ -754,6 +756,13 @@ class Agent:
                 results.append(f"✗ Error: Action type '{action_type}' requires a 'target' field (file path), but target is empty or missing.")
                 results.append(f"   Action data: {action}")
                 continue
+            
+            # For design mode, enforce .design file restriction
+            if self.mode == 'design' and action_type in ['create', 'edit']:
+                if not target.endswith('.design'):
+                    results.append(f"✗ Error: Design mode can ONLY create/edit .design files. Attempted to {action_type}: {target}")
+                    results.append(f"   Please use a .design file as the target (e.g., '{self.project_name}.design')")
+                    continue
             
             if action_type == 'edit':
                 result = self._action_edit(target, content)
