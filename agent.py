@@ -247,6 +247,16 @@ class Agent:
         prompt_parts.append("=" * 80)
         prompt_parts.append(f"\n{user_input}\n")
         
+        # For design mode, add explicit reminder
+        if self.mode == 'design':
+            prompt_parts.append("\n" + "=" * 80)
+            prompt_parts.append("REMINDER: You are in DESIGN MODE.")
+            prompt_parts.append(f"Create or edit ONLY: {self.project_name}.design")
+            prompt_parts.append("Write a DESIGN DOCUMENT (text/markdown), NOT code files.")
+            prompt_parts.append("Describe the design, architecture, and structure.")
+            prompt_parts.append("DO NOT create Package.swift, *.swift, or any code files.")
+            prompt_parts.append("=" * 80)
+        
         prompt_parts.append("\n\nRespond with JSON actions only:")
         
         return "\n".join(prompt_parts)
