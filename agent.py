@@ -271,9 +271,35 @@ class Agent:
                     if response.startswith('\n'):
                         response = response[1:].strip()
             
-            # Find JSON object in response
-            start = response.find('{')
-            end = response.rfind('}') + 1
+            # Find JSON object in response - try to find complete objects
+            # Look for the main actions object
+            actions_start = response.find('"actions"')
+            if actions_start != -1:
+                # Find the opening brace before "actions"
+                start = response.rfind('{', 0, actions_start)
+                if start == -1:
+                    start = response.find('{')
+            else:
+                start = response.find('{')
+            
+            # Find matching closing brace
+            if start != -1:
+                depth = 0
+                end = -1
+                for i in range(start, len(response)):
+                    if response[i] == '{':
+                        depth += 1
+                    elif response[i] == '}':
+                        depth -= 1
+                        if depth == 0:
+                            end = i + 1
+                            break
+                
+                if end == -1:
+                    # Incomplete JSON - try to find last closing brace
+                    end = response.rfind('}') + 1
+            else:
+                end = response.rfind('}') + 1
             
             if start == -1 or end == 0:
                 print(f"Error: No JSON found in response", file=sys.stderr)
