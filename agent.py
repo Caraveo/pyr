@@ -157,7 +157,21 @@ class Agent:
     
     def build_prompt(self, user_input: str) -> str:
         """Build the full prompt including context and history."""
-        prompt_parts = [self.base_prompt]
+        # Add response length warning
+        response_length_warning = """
+================================================================================
+⚠️ CRITICAL: RESPONSE LENGTH LIMITATIONS ⚠️
+================================================================================
+- Keep your JSON response COMPLETE and PARSEABLE
+- If creating large files, break them into MULTIPLE actions (create/edit in segments)
+- For design documents, be CONCISE - summarize key points, don't write exhaustive details
+- If a single action's content is too long, split it into multiple edit actions
+- The JSON must be complete - incomplete JSON will cause parsing errors
+- Maximum recommended content length per action: ~2000 characters
+- Use multiple actions if you need to create longer content
+================================================================================
+"""
+        prompt_parts = [self.base_prompt, response_length_warning]
         
         # Add project.context file first (project summary)
         if '__project_context__' in self.project_context:

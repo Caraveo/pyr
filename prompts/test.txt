@@ -2,10 +2,13 @@
 
 YOU MUST CREATE ONE .check FILE WITH TEXT/MARKDOWN CONTENT. NOT CODE FILES.
 
+IMPORTANT: Keep responses CONCISE. If the test design document is long, break it into segments or summarize. The JSON response must be complete and parseable.
+
 WHAT TO DO:
 1. Create ONE file: [project-name].check
 2. Write a TEST DESIGN DOCUMENT in markdown/text format
 3. Describe the test strategy, test cases, and testing approach - DO NOT write actual test code
+4. Keep the test design document concise - focus on key test cases, not exhaustive details
 
 DO NOT CREATE:
 - Test files (*_test.py, *.test.swift, *.spec.js, etc.)
