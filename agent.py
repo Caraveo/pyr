@@ -406,9 +406,7 @@ class Agent:
                         # Add missing closing braces
                         response = response[:end] + '}' * missing
                         end = len(response)
-            json_str = response[start:end]
-                    else:
-                        json_str = response[start:end]
+                    json_str = response[start:end]
                 else:
                     # No closing brace at all - try to complete from what we have
                     open_count = response[start:].count('{')
@@ -817,7 +815,6 @@ Exit code: {returncode}
 Error output:
 {last_error}
 {context_summary}
-{web_search_results}
 
 YOUR TASK:
 1. FIRST: Analyze and summarize the error in a "message" action
@@ -929,6 +926,10 @@ Remember: Start with analysis, use project context, then fix and verify."""
         debug_agent.project_context = self.project_context.copy()
         debug_agent.conversation_history = self.conversation_history.copy()
         
+        # Initialize files_before to track changes
+        self.load_context()
+        files_before = set(self.project_context.keys())
+        
         iteration = 0
         all_fixed = False
         
@@ -971,33 +972,10 @@ Remember: Start with analysis, use project context, then fix and verify."""
                 structure_info += f"- Do NOT create these files in subdirectories like Sources/, src/, etc.\n"
                 structure_info += f"- Check the current directory structure before creating files\n"
             
-            # Perform web search if not offline
-            web_search_results = ""
-            if not self.offline:
-                # Extract error keywords from failed commands
-                error_keywords = []
-                for cmd_info in failed_commands:
-                    error = cmd_info.get('error', '')
-                    command = cmd_info.get('command', '')
-                    if error:
-                        first_line = error.split('\n')[0].strip()
-                        if first_line:
-                            error_keywords.append(f"{command} {first_line[:50]}")
-                
-                # Search for solutions
-                if error_keywords:
-                    search_query = f"{error_keywords[0]} solution fix"
-                    print(f"🌐 Searching web for: {search_query}", file=sys.stderr)
-                    search_results = search_web(search_query, max_results=3)
-                    if search_results:
-                        web_search_results = format_search_results(search_results)
-                        print(f"✓ Found {len(search_results)} search results", file=sys.stderr)
-            
             debug_prompt = f"""The following commands failed. Analyze the errors and fix them:
 
 {chr(10).join(error_summary)}
 {structure_info}
-{web_search_results}
 
 CRITICAL: Before creating any files, check where they should be located.
 - Manifest files (Package.swift, package.json, Cargo.toml, go.mod, requirements.txt) MUST be at the PROJECT ROOT
@@ -1084,30 +1062,9 @@ Then re-run the failed commands to verify the fix works."""
                     print("Stopping debug loop - all commands now succeed.", file=sys.stderr)
                     break
             
-            # Check if any changes were made
+            # Update files_before for next iteration
             self.load_context()  # Reload to get latest file state
-            files_after = set(self.project_context.keys())
-            files_changed = files_after - files_before
-            files_removed = files_before - files_after
-            
-            # Check if any file modifications were made
-            has_changes = len(files_changed) > 0 or len(files_removed) > 0
-            has_actions = any(keyword in debug_result for keyword in ["✓ Created", "✓ Edited", "✓ Deleted", "--- Created", "--- Edited", "--- Deleted"])
-            
-            if not has_changes and not has_actions:
-                print(f"⚠️  WARNING: No changes detected in iteration {iteration}!", file=sys.stderr)
-                print(f"   Debug agent did not create, edit, or delete any files.", file=sys.stderr)
-                print(f"   This may indicate the agent needs more context or a different approach.", file=sys.stderr)
-                # Still continue to next iteration, but warn the user
-            
-            if has_changes:
-                print(f"✓ Changes detected: {len(files_changed)} file(s) added, {len(files_removed)} file(s) removed", file=sys.stderr)
-                if files_changed:
-                    for f in list(files_changed)[:5]:  # Show first 5
-                        print(f"   + {f}", file=sys.stderr)
-                if files_removed:
-                    for f in list(files_removed)[:5]:  # Show first 5
-                        print(f"   - {f}", file=sys.stderr)
+            files_before = set(self.project_context.keys())
             
             # Update our context with debug agent's changes
             self.project_context.update(debug_agent.project_context)
@@ -1385,7 +1342,7 @@ def main():
     parser.add_argument(
         '--offline',
         action='store_true',
-        help='Disable web search in debug mode (default: web search enabled)'
+        help='Run in offline mode (no external dependencies)'
     )
     
     args = parser.parse_args()
@@ -1436,8 +1393,8 @@ def main():
                 user_input = ' '.join(args.input)
     else:
         # For other modes, use input as-is
-    if args.input:
-        user_input = ' '.join(args.input)
+        if args.input:
+            user_input = ' '.join(args.input)
     
     # Create agent (pass user_input for structure detection in design mode)
     agent = Agent(args.mode, cwd=args.cwd, design_files=design_files, user_input=user_input or "", offline=args.offline)
@@ -1461,8 +1418,8 @@ def main():
                 result = agent.process(user_input)
         else:
             # For non-debug modes, process normally
-        result = agent.process(user_input)
-        print(result)
+            result = agent.process(user_input)
+            print(result)
     else:
         # Interactive REPL mode (especially for 'code' command)
         if args.mode == 'code':

@@ -8,8 +8,11 @@ import sys
 import warnings
 from typing import List, Dict, Optional
 
-# Suppress deprecation warnings for duckduckgo_search package
-warnings.filterwarnings("ignore", category=RuntimeWarning, message=".*duckduckgo_search.*")
+# Aggressively suppress deprecation warnings for duckduckgo_search package
+warnings.simplefilter("ignore", RuntimeWarning)
+warnings.filterwarnings("ignore", category=RuntimeWarning)
+warnings.filterwarnings("ignore", message=".*duckduckgo_search.*")
+warnings.filterwarnings("ignore", message=".*renamed to ddgs.*")
 
 
 def search_web(query: str, max_results: int = 5) -> Optional[List[Dict[str, str]]]:
@@ -31,11 +34,13 @@ def search_web(query: str, max_results: int = 5) -> Optional[List[Dict[str, str]
         except ImportError:
             # Fallback to old package name for backwards compatibility
             try:
-                import warnings
-                # Suppress the deprecation warning BEFORE importing
-                warnings.filterwarnings("ignore", category=RuntimeWarning)
-                warnings.filterwarnings("ignore", message=".*duckduckgo_search.*")
-                from duckduckgo_search import DDGS
+                # Aggressively suppress warnings before importing
+                with warnings.catch_warnings():
+                    warnings.simplefilter("ignore")
+                    warnings.filterwarnings("ignore", category=RuntimeWarning)
+                    warnings.filterwarnings("ignore", message=".*duckduckgo_search.*")
+                    warnings.filterwarnings("ignore", message=".*renamed to ddgs.*")
+                    from duckduckgo_search import DDGS
             except ImportError:
                 print("Warning: ddgs not installed. Install with: pip3 install ddgs", file=sys.stderr)
                 return None
@@ -45,20 +50,29 @@ def search_web(query: str, max_results: int = 5) -> Optional[List[Dict[str, str]
         
         results = []
         # Suppress deprecation warnings when using the old package
-        import warnings
+        # Use simplefilter to completely suppress RuntimeWarnings
         with warnings.catch_warnings():
+            warnings.simplefilter("ignore", RuntimeWarning)
             warnings.filterwarnings("ignore", category=RuntimeWarning)
             warnings.filterwarnings("ignore", message=".*duckduckgo_search.*")
-            with DDGS() as ddgs:
-                # Search for the query
-                search_results = ddgs.text(query, max_results=max_results)
-                
-                for result in search_results:
-                    results.append({
-                        'title': result.get('title', ''),
-                        'url': result.get('href', ''),
-                        'snippet': result.get('body', '')
-                    })
+            warnings.filterwarnings("ignore", message=".*renamed to ddgs.*")
+            # Suppress warnings during instantiation and usage
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore")
+                try:
+                    with DDGS() as ddgs:
+                        # Search for the query
+                        search_results = ddgs.text(query, max_results=max_results)
+                        
+                        for result in search_results:
+                            results.append({
+                                'title': result.get('title', ''),
+                                'url': result.get('href', ''),
+                                'snippet': result.get('body', '')
+                            })
+                except Exception as e:
+                    # If there's an error, it will be caught by outer try-except
+                    raise
         
         return results if results else None
         
