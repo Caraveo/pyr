@@ -138,6 +138,28 @@ else
         fi
     fi
     
+    # Install ddgs (for web search in debug mode)
+    if python3 -c "import ddgs" 2>/dev/null || python3 -c "import duckduckgo_search" 2>/dev/null; then
+        echo "  ✓ ddgs (or duckduckgo_search) already installed"
+    else
+        echo "  Installing ddgs (for web search in debug mode)..."
+        # Try multiple installation methods for compatibility
+        if python3 -m pip install --user ddgs >/dev/null 2>&1; then
+            echo "    ✓ Installed ddgs (user install)"
+        elif python3 -m pip install --break-system-packages ddgs >/dev/null 2>&1; then
+            echo "    ✓ Installed ddgs (system install)"
+        elif pip3 install --user ddgs >/dev/null 2>&1; then
+            echo "    ✓ Installed ddgs (user install via pip3)"
+        elif pip3 install --break-system-packages ddgs >/dev/null 2>&1; then
+            echo "    ✓ Installed ddgs (system install via pip3)"
+        else
+            echo "    ⚠️  Warning: Could not install ddgs automatically"
+            echo "       Web search in debug mode will not work. Install manually:"
+            echo "       pip3 install --user ddgs"
+            echo "       Or: pip3 install --break-system-packages ddgs"
+        fi
+    fi
+    
 fi
 
 echo ""

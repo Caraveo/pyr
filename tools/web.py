@@ -5,7 +5,11 @@ Uses DuckDuckGo for free, no-API-key web search.
 """
 
 import sys
+import warnings
 from typing import List, Dict, Optional
+
+# Suppress deprecation warnings for duckduckgo_search package
+warnings.filterwarnings("ignore", category=RuntimeWarning, message=".*duckduckgo_search.*")
 
 
 def search_web(query: str, max_results: int = 5) -> Optional[List[Dict[str, str]]]:
@@ -28,10 +32,10 @@ def search_web(query: str, max_results: int = 5) -> Optional[List[Dict[str, str]
             # Fallback to old package name for backwards compatibility
             try:
                 import warnings
-                # Suppress the deprecation warning
-                with warnings.catch_warnings():
-                    warnings.filterwarnings("ignore", category=RuntimeWarning)
-                    from duckduckgo_search import DDGS
+                # Suppress the deprecation warning BEFORE importing
+                warnings.filterwarnings("ignore", category=RuntimeWarning)
+                warnings.filterwarnings("ignore", message=".*duckduckgo_search.*")
+                from duckduckgo_search import DDGS
             except ImportError:
                 print("Warning: ddgs not installed. Install with: pip3 install ddgs", file=sys.stderr)
                 return None
@@ -44,6 +48,7 @@ def search_web(query: str, max_results: int = 5) -> Optional[List[Dict[str, str]
         import warnings
         with warnings.catch_warnings():
             warnings.filterwarnings("ignore", category=RuntimeWarning)
+            warnings.filterwarnings("ignore", message=".*duckduckgo_search.*")
             with DDGS() as ddgs:
                 # Search for the query
                 search_results = ddgs.text(query, max_results=max_results)
