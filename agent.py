@@ -51,7 +51,14 @@ from tools.shell import (
 )
 from tools.diff import generate_unified_diff
 from tools.progress import ProgressTracker, break_down_tasks, generate_todo_list
-from tools.progress import ProgressTracker, break_down_tasks, generate_todo_list
+from tools.edit import (
+    append_line,
+    append_block,
+    insert_at_line,
+    replace_line,
+    delete_line,
+    get_best_tool
+)
 
 
 # Agent modes

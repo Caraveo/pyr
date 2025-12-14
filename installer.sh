@@ -33,6 +33,7 @@ cp "$SCRIPT_DIR/agent.py" "$INSTALL_DIR/"
 cp "$SCRIPT_DIR/tools/fs.py" "$INSTALL_DIR/tools/"
 cp "$SCRIPT_DIR/tools/shell.py" "$INSTALL_DIR/tools/"
 cp "$SCRIPT_DIR/tools/diff.py" "$INSTALL_DIR/tools/"
+cp "$SCRIPT_DIR/tools/edit.py" "$INSTALL_DIR/tools/" 2>/dev/null || true
 cp "$SCRIPT_DIR/tools/structures.py" "$INSTALL_DIR/tools/" 2>/dev/null || true
 cp "$SCRIPT_DIR/tools/progress.py" "$INSTALL_DIR/tools/" 2>/dev/null || true
 cp "$SCRIPT_DIR/tools/web.py" "$INSTALL_DIR/tools/" 2>/dev/null || true
