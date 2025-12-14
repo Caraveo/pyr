@@ -377,14 +377,32 @@ class Agent:
                         break
             
             if end == -1:
-                # Incomplete JSON - try to find last closing brace
+                # Incomplete JSON - try to find last closing brace and complete it
                 last_brace = response.rfind('}')
                 if last_brace != -1:
+                    # Use the last closing brace we found
                     end = last_brace + 1
+                    # Count how many braces are missing
+                    open_count = response[start:end].count('{')
+                    close_count = response[start:end].count('}')
+                    missing = open_count - close_count
+                    if missing > 0:
+                        # Add missing closing braces
+                        response = response[:end] + '}' * missing
+                        end = len(response)
                 else:
-                    print(f"Error: Incomplete JSON (no closing brace found)", file=sys.stderr)
-                    print(f"Response preview (first 500 chars): {response[:500]}", file=sys.stderr)
-                    return None
+                    # No closing brace at all - try to complete from what we have
+                    open_count = response[start:].count('{')
+                    close_count = response[start:].count('}')
+                    missing = open_count - close_count
+                    if missing > 0:
+                        # Add missing closing braces
+                        response = response + '}' * missing
+                        end = len(response)
+                    else:
+                        print(f"Error: Incomplete JSON (no closing brace found)", file=sys.stderr)
+                        print(f"Response preview (first 500 chars): {response[:500]}", file=sys.stderr)
+                        return None
             
             json_str = response[start:end]
             
