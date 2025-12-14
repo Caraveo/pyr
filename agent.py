@@ -190,11 +190,11 @@ class Agent:
                            if not k.startswith('__')]
             
             for file_path, content in regular_files[:50]:  # Limit context size
-                prompt_parts.append(f"\n--- {file_path} ---")
-                # Truncate very long files
-                if len(content) > 5000:
-                    content = content[:5000] + "\n... (truncated)"
-                prompt_parts.append(content)
+                    prompt_parts.append(f"\n--- {file_path} ---")
+                    # Truncate very long files
+                    if len(content) > 5000:
+                        content = content[:5000] + "\n... (truncated)"
+                    prompt_parts.append(content)
             
             if len(regular_files) > 50:
                 prompt_parts.append(f"\n... and {len(regular_files) - 50} more files")
@@ -355,12 +355,14 @@ class Agent:
             
             # Find JSON object in response - try to find complete objects
             # Look for the main actions object
+            start = -1
+            end = -1
             actions_start = response.find('"actions"')
             if actions_start != -1:
                 # Find the opening brace before "actions"
                 start = response.rfind('{', 0, actions_start)
                 if start == -1:
-                    start = response.find('{')
+            start = response.find('{')
                 
                 # Find matching closing brace
                 if start != -1:
@@ -379,7 +381,10 @@ class Agent:
                     # Incomplete JSON - try to find last closing brace
                     end = response.rfind('}') + 1
             else:
-                end = response.rfind('}') + 1
+                # No "actions" found, try to find any JSON object
+                start = response.find('{')
+                if start != -1:
+            end = response.rfind('}') + 1
             
             if start == -1 or end == 0:
                 print(f"Error: No JSON found in response", file=sys.stderr)
@@ -399,7 +404,7 @@ class Agent:
                             if 'file_path' in action and 'target' not in action:
                                 action['target'] = action.pop('file_path')
                 return parsed
-            except json.JSONDecodeError as e:
+        except json.JSONDecodeError as e:
                 # If JSON is incomplete, try to fix it
                 if 'Expecting' in str(e) or 'Unterminated' in str(e):
                     # Try to complete the JSON by adding missing closing braces
@@ -1670,8 +1675,8 @@ def main():
                 user_input = ' '.join(args.input)
     else:
         # For other modes, use input as-is
-        if args.input:
-            user_input = ' '.join(args.input)
+    if args.input:
+        user_input = ' '.join(args.input)
     
     # Create agent (pass user_input for structure detection in design mode)
     agent = Agent(args.mode, cwd=args.cwd, design_files=design_files, user_input=user_input or "")
@@ -1695,7 +1700,7 @@ def main():
                 result = agent.process(user_input)
         else:
             # For non-debug modes, process normally
-            result = agent.process(user_input)
+        result = agent.process(user_input)
         print(result)
     else:
         # Interactive REPL mode (especially for 'code' command)
