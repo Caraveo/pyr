@@ -49,6 +49,7 @@ from tools.shell import (
     get_ollama_model,
     run_ollama
 )
+from tools.web import search_web, format_search_results
 from tools.diff import generate_unified_diff
 from tools.progress import ProgressTracker, break_down_tasks, generate_todo_list
 from tools.progress import ProgressTracker, break_down_tasks, generate_todo_list
@@ -61,7 +62,7 @@ MODES = ['code', 'design', 'craft', 'debug', 'test']
 class Agent:
     """Main agent class that handles AI interactions and actions."""
     
-    def __init__(self, mode: str, cwd: Optional[Path] = None, design_files: Optional[List[Path]] = None, user_input: str = ""):
+    def __init__(self, mode: str, cwd: Optional[Path] = None, design_files: Optional[List[Path]] = None, user_input: str = "", offline: bool = False):
         self.mode = mode
         self.cwd = Path(cwd) if cwd else Path.cwd()
         self.conversation_history: List[Dict[str, str]] = []
@@ -69,6 +70,7 @@ class Agent:
         self.design_files: List[Path] = design_files or []
         self.detected_structure: Optional[Dict[str, Any]] = None
         self.project_name: str = ""
+        self.offline = offline
         
         # Load prompt
         prompt_file = Path(__file__).parent / 'prompts' / f'{mode}.txt'
@@ -1147,7 +1149,7 @@ Remember: Start with analysis, use project context, then fix and verify."""
                 debug_prompt += structure_info
             
             # Process with debug agent
-            debug_agent = Agent('debug', cwd=self.cwd, user_input="")
+            debug_agent = Agent('debug', cwd=self.cwd, user_input="", offline=self.offline)
             debug_agent.project_context = self.project_context.copy()
             debug_agent.conversation_history = self.conversation_history.copy()
             
@@ -1257,10 +1259,33 @@ Remember: Start with analysis, use project context, then fix and verify."""
                 structure_info += f"- Do NOT create these files in subdirectories like Sources/, src/, etc.\n"
                 structure_info += f"- Check the current directory structure before creating files\n"
             
+            # Perform web search if not offline
+            web_search_results = ""
+            if not self.offline:
+                # Extract error keywords from failed commands
+                error_keywords = []
+                for cmd_info in failed_commands:
+                    error = cmd_info.get('error', '')
+                    command = cmd_info.get('command', '')
+                    if error:
+                        first_line = error.split('\n')[0].strip()
+                        if first_line:
+                            error_keywords.append(f"{command} {first_line[:50]}")
+                
+                # Search for solutions
+                if error_keywords:
+                    search_query = f"{error_keywords[0]} solution fix"
+                    print(f"🌐 Searching web for: {search_query}", file=sys.stderr)
+                    search_results = search_web(search_query, max_results=3)
+                    if search_results:
+                        web_search_results = format_search_results(search_results)
+                        print(f"✓ Found {len(search_results)} search results", file=sys.stderr)
+            
             debug_prompt = f"""The following commands failed. Analyze the errors and fix them:
 
 {chr(10).join(error_summary)}
 {structure_info}
+{web_search_results}
 
 CRITICAL: Before creating any files, check where they should be located.
 - Manifest files (Package.swift, package.json, Cargo.toml, go.mod, requirements.txt) MUST be at the PROJECT ROOT
