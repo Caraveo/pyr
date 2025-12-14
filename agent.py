@@ -247,14 +247,24 @@ class Agent:
         prompt_parts.append("=" * 80)
         prompt_parts.append(f"\n{user_input}\n")
         
-        # For design mode, add explicit reminder
+        # For design mode, add explicit reminder with example
         if self.mode == 'design':
             prompt_parts.append("\n" + "=" * 80)
-            prompt_parts.append("REMINDER: You are in DESIGN MODE.")
+            prompt_parts.append("⚠️  CRITICAL REMINDER: YOU ARE IN DESIGN MODE ⚠️")
+            prompt_parts.append("=" * 80)
             prompt_parts.append(f"Create or edit ONLY: {self.project_name}.design")
-            prompt_parts.append("Write a DESIGN DOCUMENT (text/markdown), NOT code files.")
-            prompt_parts.append("Describe the design, architecture, and structure.")
-            prompt_parts.append("DO NOT create Package.swift, *.swift, or any code files.")
+            prompt_parts.append("")
+            prompt_parts.append("Write a DESIGN DOCUMENT (markdown text), NOT code files.")
+            prompt_parts.append("Describe the architecture, file structure, and components.")
+            prompt_parts.append("")
+            prompt_parts.append("EXAMPLE: If creating Dice.design, write markdown like:")
+            prompt_parts.append("  # Dice Design")
+            prompt_parts.append("  ## File Structure")
+            prompt_parts.append("  - Package.swift: Swift Package Manager manifest")
+            prompt_parts.append("  - Sources/Dice/App.swift: Main app entry point")
+            prompt_parts.append("")
+            prompt_parts.append("DO NOT create Package.swift, *.swift, or any code files!")
+            prompt_parts.append("ONLY create the .design file with text descriptions!")
             prompt_parts.append("=" * 80)
         
         prompt_parts.append("\n\nRespond with JSON actions only:")
