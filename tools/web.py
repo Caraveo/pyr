@@ -20,12 +20,16 @@ def search_web(query: str, max_results: int = 5) -> Optional[List[Dict[str, str]
         List of dictionaries with 'title', 'url', and 'snippet' keys, or None if search fails
     """
     try:
-        # Try to import duckduckgo-search
+        # Try to import ddgs (new package name, duckduckgo_search is deprecated)
         try:
-            from duckduckgo_search import DDGS
+            from ddgs import DDGS
         except ImportError:
-            print("Warning: duckduckgo-search not installed. Install with: pip3 install duckduckgo-search", file=sys.stderr)
-            return None
+            # Fallback to old package name for backwards compatibility
+            try:
+                from duckduckgo_search import DDGS
+            except ImportError:
+                print("Warning: ddgs not installed. Install with: pip3 install ddgs", file=sys.stderr)
+                return None
         
         results = []
         with DDGS() as ddgs:

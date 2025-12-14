@@ -136,24 +136,24 @@ else
         fi
     fi
     
-    # Install duckduckgo-search for web search in debug mode
-    if python3 -c "import duckduckgo_search" 2>/dev/null; then
-        echo "  ✓ duckduckgo-search already installed"
+    # Install ddgs for web search in debug mode (duckduckgo_search has been renamed)
+    if python3 -c "import ddgs" 2>/dev/null || python3 -c "import duckduckgo_search" 2>/dev/null; then
+        echo "  ✓ ddgs/duckduckgo-search already installed"
     else
-        echo "  Installing duckduckgo-search (for web search in debug mode)..."
+        echo "  Installing ddgs (for web search in debug mode)..."
         # Try multiple installation methods for compatibility
-        if python3 -m pip install --user duckduckgo-search >/dev/null 2>&1; then
-            echo "    ✓ Installed duckduckgo-search (user install)"
-        elif python3 -m pip install --break-system-packages duckduckgo-search >/dev/null 2>&1; then
-            echo "    ✓ Installed duckduckgo-search (system install)"
-        elif pip3 install --user duckduckgo-search >/dev/null 2>&1; then
-            echo "    ✓ Installed duckduckgo-search (user install via pip3)"
-        elif pip3 install --break-system-packages duckduckgo-search >/dev/null 2>&1; then
-            echo "    ✓ Installed duckduckgo-search (system install via pip3)"
+        if python3 -m pip install --user ddgs >/dev/null 2>&1; then
+            echo "    ✓ Installed ddgs (user install)"
+        elif python3 -m pip install --break-system-packages ddgs >/dev/null 2>&1; then
+            echo "    ✓ Installed ddgs (system install)"
+        elif pip3 install --user ddgs >/dev/null 2>&1; then
+            echo "    ✓ Installed ddgs (user install via pip3)"
+        elif pip3 install --break-system-packages ddgs >/dev/null 2>&1; then
+            echo "    ✓ Installed ddgs (system install via pip3)"
         else
-            echo "    ✗ Could not install duckduckgo-search automatically"
-            echo "       Please run manually: pip3 install --user duckduckgo-search"
-            echo "       Or: pip3 install --break-system-packages duckduckgo-search"
+            echo "    ✗ Could not install ddgs automatically"
+            echo "       Please run manually: pip3 install --user ddgs"
+            echo "       Or: pip3 install --break-system-packages ddgs"
         fi
     fi
 fi
