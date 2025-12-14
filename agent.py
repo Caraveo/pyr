@@ -313,10 +313,51 @@ class Agent:
                 # Normalize field names if needed (path -> target)
                 if isinstance(parsed, dict) and 'actions' in parsed:
                     for action in parsed.get('actions', []):
-                        if 'path' in action and 'target' not in action:
-                            action['target'] = action.pop('path')
+                        if isinstance(action, dict):
+                            if 'path' in action and 'target' not in action:
+                                action['target'] = action.pop('path')
+                            if 'file_path' in action and 'target' not in action:
+                                action['target'] = action.pop('file_path')
                 return parsed
-            except json.JSONDecodeError:
+            except json.JSONDecodeError as e:
+                # If JSON is incomplete, try to fix it
+                if 'Expecting' in str(e) or 'Unterminated' in str(e):
+                    # Try to complete the JSON by adding missing closing braces
+                    open_braces = json_str.count('{')
+                    close_braces = json_str.count('}')
+                    missing = open_braces - close_braces
+                    if missing > 0:
+                        # Also check for incomplete strings
+                        json_str_fixed = json_str
+                        # Count unclosed quotes in strings
+                        in_string = False
+                        escape_next = False
+                        for char in json_str:
+                            if escape_next:
+                                escape_next = False
+                            elif char == '\\':
+                                escape_next = True
+                            elif char == '"' and not escape_next:
+                                in_string = not in_string
+                        
+                        # If string is unclosed, close it
+                        if in_string:
+                            json_str_fixed = json_str_fixed.rstrip() + '"'
+                        
+                        json_str_fixed += '}' * missing
+                        try:
+                            parsed = json.loads(json_str_fixed)
+                            # Normalize field names
+                            if isinstance(parsed, dict) and 'actions' in parsed:
+                                for action in parsed.get('actions', []):
+                                    if isinstance(action, dict):
+                                        if 'path' in action and 'target' not in action:
+                                            action['target'] = action.pop('path')
+                                        if 'file_path' in action and 'target' not in action:
+                                            action['target'] = action.pop('file_path')
+                            return parsed
+                        except:
+                            pass
                 pass
             
             # Strategy 2: Try json5 (more lenient, handles trailing commas, comments, etc.)
