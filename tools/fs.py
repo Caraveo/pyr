@@ -433,12 +433,12 @@ def update_project_context(root_dir: Path, project_context: Dict[str, str],
                 summary_parts.append("")
                 break
     
-    summary = "\n".join(summary_parts)
+        summary = "\n".join(summary_parts)
     
     try:
         with open(context_file, 'w', encoding='utf-8') as f:
             f.write(summary)
         return True
-        except (OSError, PermissionError) as e:
-            print(f"Warning: Could not update {project_name}.context: {e}", file=sys.stderr)
-            return False
+    except (OSError, PermissionError) as e:
+        print(f"Warning: Could not update {project_name}.context: {e}", file=sys.stderr)
+        return False
