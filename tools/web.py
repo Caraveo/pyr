@@ -21,18 +21,30 @@ def search_web(query: str, max_results: int = 5) -> Optional[List[Dict[str, str]
     """
     try:
         # Try to import ddgs (new package name, duckduckgo_search is deprecated)
+        DDGS = None
         try:
             from ddgs import DDGS
         except ImportError:
             # Fallback to old package name for backwards compatibility
             try:
-                from duckduckgo_search import DDGS
+                import warnings
+                # Suppress the deprecation warning
+                with warnings.catch_warnings():
+                    warnings.filterwarnings("ignore", category=RuntimeWarning)
+                    from duckduckgo_search import DDGS
             except ImportError:
                 print("Warning: ddgs not installed. Install with: pip3 install ddgs", file=sys.stderr)
                 return None
         
+        if DDGS is None:
+            return None
+        
         results = []
-        with DDGS() as ddgs:
+        # Suppress deprecation warnings when using the old package
+        import warnings
+        with warnings.catch_warnings():
+            warnings.filterwarnings("ignore", category=RuntimeWarning)
+            with DDGS() as ddgs:
             # Search for the query
             search_results = ddgs.text(query, max_results=max_results)
             
