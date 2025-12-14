@@ -387,6 +387,40 @@ class Agent:
                     return None
             
             json_str = response[start:end]
+            
+            # Parse using json5 (handles trailing commas, comments, unescaped newlines, etc.)
+            try:
+                parsed = json5.loads(json_str)
+                
+                # Normalize field names if needed (path -> target, file_path -> target)
+                if isinstance(parsed, dict) and 'actions' in parsed:
+                    for action in parsed.get('actions', []):
+                        if isinstance(action, dict):
+                            # Normalize field names
+                            if 'path' in action and 'target' not in action:
+                                action['target'] = action.pop('path')
+                            if 'file_path' in action and 'target' not in action:
+                                action['target'] = action.pop('file_path')
+                            if 'file' in action and 'target' not in action:
+                                action['target'] = action.pop('file')
+                            if 'file_name' in action and 'target' not in action:
+                                action['target'] = action.pop('file_name')
+                            
+                            # Validate target is not empty for file operations
+                            action_type = action.get('type', '').lower()
+                            if action_type in ['create', 'edit', 'delete'] and not action.get('target'):
+                                # Try to infer from other fields
+                                target = (action.get('path') or action.get('file_path') or 
+                                         action.get('file') or action.get('file_name') or '').strip()
+                                if target:
+                                    action['target'] = target
+                
+                return parsed
+                
+            except Exception as e:
+                print(f"Error parsing json5 response: {e}", file=sys.stderr)
+                print(f"Response preview (first 500 chars): {json_str[:500]}", file=sys.stderr)
+                return None
     
         except Exception as e:
             print(f"Unexpected error parsing json5: {e}", file=sys.stderr)
