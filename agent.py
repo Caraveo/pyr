@@ -1489,8 +1489,6 @@ def main():
                 result = agent.process(user_input)
         else:
             result = agent.process(user_input)
-        else:
-        result = agent.process(user_input)
         print(result)
     else:
         # Interactive REPL mode (especially for 'code' command)
