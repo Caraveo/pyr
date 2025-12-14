@@ -51,33 +51,22 @@ create_command() {
     local cmd_name=$1
     local wrapper_path="$INSTALL_DIR/${cmd_name}_wrapper.sh"
     
-    # Special handling for 'test' command to avoid shell built-in conflict
-    if [ "$cmd_name" = "test" ]; then
-        cat > "$wrapper_path" << 'EOF'
-#!/bin/bash
-# Wrapper for test command (avoiding shell built-in)
-exec python3 "$HOME/.local-ai-agent/agent.py" test "$@"
-EOF
-    else
-        cat > "$wrapper_path" << EOF
+    cat > "$wrapper_path" << EOF
 #!/bin/bash
 # Wrapper for $cmd_name command
 exec python3 "$INSTALL_DIR/agent.py" $cmd_name "\$@"
 EOF
-    fi
     
     chmod +x "$wrapper_path"
     
-    # Create symlink (requires sudo)
-    # For 'test', use a different approach to override shell built-in
+    # Special handling for 'test' command - install as 'check' to avoid shell built-in conflict
     if [ "$cmd_name" = "test" ]; then
-        # Create an alias or function in shell config, or use full path
-        if sudo ln -sf "$wrapper_path" "$BIN_DIR/ai-test" 2>/dev/null; then
-            echo "  ✓ Installed: ai-test (use 'ai-test' or full path to avoid shell built-in)"
-            echo "    Note: 'test' is a shell built-in. Use 'ai-test' or '$wrapper_path'"
+        if sudo ln -sf "$wrapper_path" "$BIN_DIR/check" 2>/dev/null; then
+            echo "  ✓ Installed: check (use 'check' to run tests, avoids shell built-in 'test')"
+            echo "    Note: 'test' is a shell built-in. Use 'check' or '$wrapper_path'"
         else
-            echo "  ✗ Failed to install test command (may need sudo)"
-            echo "    Run manually: sudo ln -sf $wrapper_path $BIN_DIR/ai-test"
+            echo "  ✗ Failed to install check command (may need sudo)"
+            echo "    Run manually: sudo ln -sf $wrapper_path $BIN_DIR/check"
         fi
     else
         if sudo ln -sf "$wrapper_path" "$BIN_DIR/$cmd_name" 2>/dev/null; then
@@ -106,7 +95,7 @@ echo "  - code    (interactive coding agent)"
 echo "  - design  (design document agent)"
 echo "  - craft   (implementation agent)"
 echo "  - debug   (debugging agent)"
-echo "  - test    (testing agent)"
+echo "  - check   (testing agent - runs tests or creates .test files)"
 echo ""
 echo "Usage:"
 echo "  code                    # Interactive mode"
@@ -121,7 +110,7 @@ echo "Optional (recommended for better JSON parsing):"
 echo "  - json5: pip3 install json5"
 echo ""
 echo "To uninstall, run:"
-echo "  sudo rm $BIN_DIR/{code,design,craft,debug,test}"
+echo "  sudo rm $BIN_DIR/{code,design,craft,debug,check}"
 echo "  rm -rf $INSTALL_DIR"
 echo ""
 
